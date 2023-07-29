@@ -86,5 +86,11 @@ fn main() {
         }
     };
 
-    let gruik_config: GruikConfig = serde_yaml::from_str(&yaml).unwrap();
+    let gruik_config: GruikConfig = match serde_yaml::from_str(&yaml) {
+        Ok(r) => r,
+        Err(e) => {
+            println!("Can't parse '{config_filename}' : {e}");
+            std::process::exit(1);
+        }
+    };
 }
