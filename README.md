@@ -11,6 +11,7 @@ To be complete, the following features are needed :
 - [ ] Join configured xchannels
 - [ ] Handle private messages
 - [ ] Fetch and post news from RSS feeds
+- [ ] Handle IRC disconnects
 
 # Notes
 
