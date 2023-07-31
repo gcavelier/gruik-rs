@@ -8,3 +8,5 @@ edition = "2021"
 [dependencies]
 serde = { version = "1.0.178", features = ["derive"] }
 serde_yaml = "0.9.25"
+loirc = "0.2.0"
+encoding = "0.2.33"

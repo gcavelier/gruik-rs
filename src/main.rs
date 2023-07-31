@@ -1,8 +1,11 @@
+use encoding;
+use loirc;
 use serde::Deserialize;
 use serde_yaml;
 use std::collections::HashMap;
 use std::env;
 use std::fs;
+use std::time::Duration;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields, default)]
@@ -70,6 +73,43 @@ struct GruikConfig {
     feeds: FeedsConfig,
 }
 
+fn handle_irc_messages(
+    gruik_config: &GruikConfig,
+    irc_writer: &loirc::Writer,
+    irc_reader: &loirc::Reader,
+) {
+    for event in irc_reader.iter() {
+        if gruik_config.irc.debug {
+            dbg!(&event);
+        }
+        match event {
+            loirc::Event::Message(msg) => {
+                if msg.code == loirc::Code::Ping {
+                    let res = irc_writer.raw(format!("PONG :{}\n", msg.args.get(0).unwrap()));
+                    match res {
+                        Ok(r) => (),
+                        Err(e) => {
+                            dbg!("{e}");
+                        }
+                    }
+                } else if msg.code == loirc::Code::RplWelcome {
+                    let res = irc_writer.raw(format!("JOIN {}\n", gruik_config.irc.channel));
+                    match res {
+                        Ok(r) => (),
+                        Err(e) => {
+                            dbg!("{e}");
+                        }
+                    }
+                }
+                // We just discard all other messages ;)
+            }
+            _ => {
+                println!("Don't know what to do with the following event :");
+                dbg!(event);
+            }
+        }
+    }
+}
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -93,4 +133,46 @@ fn main() {
             std::process::exit(1);
         }
     };
+
+    let (irc_writer, irc_reader) = match loirc::connect(
+        format!("{}:{}", gruik_config.irc.server, gruik_config.irc.port),
+        loirc::ReconnectionSettings::Reconnect {
+            max_attempts: 10,
+            delay_between_attempts: Duration::from_secs(2),
+            delay_after_disconnect: Duration::from_secs(2),
+        },
+        encoding::all::UTF_8,
+    ) {
+        Ok(r) => r,
+        Err(e) => {
+            println!("Can't connect to IRC server : {e}");
+            std::process::exit(1);
+        }
+    };
+
+    // register
+    let res = irc_writer.raw(format!("NICK {}\n", &gruik_config.irc.nick));
+    match res {
+        Ok(r) => (),
+        Err(e) => {
+            println!("Can't send the 'NICK' command :");
+            dbg!("{e}");
+            std::process::exit(1);
+        }
+    }
+
+    let res = irc_writer.raw(format!(
+        "USER {} 0 * :{}\n",
+        &gruik_config.irc.nick, &gruik_config.irc.nick
+    ));
+    match res {
+        Ok(r) => (),
+        Err(e) => {
+            println!("Can't send the 'USER' command :");
+            dbg!("{e}");
+            std::process::exit(1);
+        }
+    }
+    // *Warning*, this is a *blocking* function!
+    handle_irc_messages(&gruik_config, &irc_writer, &irc_reader);
 }
