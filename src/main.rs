@@ -1,5 +1,7 @@
 use encoding;
 use loirc;
+use loirc::Message;
+use loirc::Prefix::{Server, User};
 use serde::Deserialize;
 use serde_yaml;
 use std::collections::HashMap;
@@ -73,7 +75,97 @@ struct GruikConfig {
     feeds: FeedsConfig,
 }
 
-fn handle_irc_messages(
+fn handle_irc_messages(gruik_config: &GruikConfig, irc_writer: &loirc::Writer, msg: Message) {
+    /*
+     * PING
+     */
+    if msg.code == loirc::Code::Ping {
+        let ping_arg = match msg.args.get(0) {
+            Some(r) => r,
+            None => {
+                println!("Can't get ping argument! exiting.");
+                std::process::exit(1);
+            }
+        };
+        if let Err(e) = irc_writer.raw(format!("PONG :{}\n", ping_arg)) {
+            dbg!("{e}");
+        }
+        return;
+    }
+    /*
+     * RPL_WELCOME
+     */
+    if msg.code == loirc::Code::RplWelcome {
+        if let Err(e) = irc_writer.raw(format!("JOIN {}\n", gruik_config.irc.channel)) {
+            dbg!("{e}");
+        }
+        return;
+    }
+    /*
+     * PRIVMSG
+     */
+    if msg.code == loirc::Code::Privmsg {
+        let empty_str = "".to_string();
+        let msg_target = msg.args.get(0).unwrap_or(&empty_str);
+        let msg_str = msg.args.get(1).unwrap_or(&empty_str);
+
+        /*
+         * !lsfeeds
+         */
+        if msg_str.starts_with("!lsfeeds") {
+            println!("NOT IMPLEMENTED: !lsfeeds");
+        }
+        /*
+         * !xpost
+         */
+        else if msg_str.starts_with("!xpost") {
+            println!("NOT IMPLEMENTED: !xpost");
+        }
+        /*
+         * !latest
+         */
+        else if msg_str.starts_with("!latest") {
+            println!("NOT IMPLEMENTED: !latest");
+        }
+
+        // All commands below requires OP
+        let msg_source: String = match msg.prefix {
+            Some(p) => match p {
+                User(u) => u.nickname,
+                Server(s) => s,
+            },
+            None => "".to_string(),
+        };
+        if !gruik_config.irc.ops.contains(&msg_source) {
+            return;
+        }
+
+        /*
+         * !die
+         */
+        if msg_str.starts_with("!die") {
+            println!("NOT IMPLEMENTED: !die");
+        }
+        /*
+         * !addfeed
+         */
+        else if msg_str.starts_with("!addfeed") {
+            println!("NOT IMPLEMENTED: !addfeed");
+        }
+        /*
+         * !rmfeed
+         */
+        else if msg_str.starts_with("!rmfeed") {
+            println!("NOT IMPLEMENTED: !rmfeed");
+        }
+
+        return;
+
+        // We discard all other messages
+    }
+}
+
+fn handle_irc_events(
     gruik_config: &GruikConfig,
     irc_writer: &loirc::Writer,
     irc_reader: &loirc::Reader,
@@ -84,23 +176,7 @@ fn handle_irc_messages(
         }
         match event {
             loirc::Event::Message(msg) => {
-                if msg.code == loirc::Code::Ping {
-                    let ping_arg = match msg.args.get(0) {
-                        Some(r) => r,
-                        None => {
-                            println!("Can't get ping argument! exiting.");
-                            std::process::exit(1);
-                        }
-                    };
-                    if let Err(e) = irc_writer.raw(format!("PONG :{}\n", ping_arg)) {
-                        dbg!("{e}");
-                    }
-                } else if msg.code == loirc::Code::RplWelcome {
-                    if let Err(e) = irc_writer.raw(format!("JOIN {}\n", gruik_config.irc.channel)) {
-                        dbg!("{e}");
-                    }
-                }
-                // We just discard all other messages ;)
+                handle_irc_messages(gruik_config, irc_writer, msg);
             }
             _ => {
                 println!("Don't know what to do with the following event :");
@@ -165,5 +241,5 @@ fn main() {
         std::process::exit(1);
     }
     // *Warning*, this is a *blocking* function!
-    handle_irc_messages(&gruik_config, &irc_writer, &irc_reader);
+    handle_irc_events(&gruik_config, &irc_writer, &irc_reader);
 }
