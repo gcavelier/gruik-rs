@@ -85,20 +85,13 @@ fn handle_irc_messages(
         match event {
             loirc::Event::Message(msg) => {
                 if msg.code == loirc::Code::Ping {
-                    let res = irc_writer.raw(format!("PONG :{}\n", msg.args.get(0).unwrap()));
-                    match res {
-                        Ok(r) => (),
-                        Err(e) => {
-                            dbg!("{e}");
-                        }
+                    if let Err(e) = irc_writer.raw(format!("PONG :{}\n", msg.args.get(0).unwrap()))
+                    {
+                        dbg!("{e}");
                     }
                 } else if msg.code == loirc::Code::RplWelcome {
-                    let res = irc_writer.raw(format!("JOIN {}\n", gruik_config.irc.channel));
-                    match res {
-                        Ok(r) => (),
-                        Err(e) => {
-                            dbg!("{e}");
-                        }
+                    if let Err(e) = irc_writer.raw(format!("JOIN {}\n", gruik_config.irc.channel)) {
+                        dbg!("{e}");
                     }
                 }
                 // We just discard all other messages ;)
