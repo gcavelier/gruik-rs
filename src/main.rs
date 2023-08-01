@@ -88,7 +88,7 @@ fn handle_irc_messages(gruik_config: &GruikConfig, irc_writer: &loirc::Writer, m
             }
         };
         if let Err(e) = irc_writer.raw(format!("PONG :{}\n", ping_arg)) {
-            dbg!("{e}");
+            println!("Couldn't send the 'JOIN' command{:?}", e);
         }
         return;
     }
@@ -97,7 +97,7 @@ fn handle_irc_messages(gruik_config: &GruikConfig, irc_writer: &loirc::Writer, m
      */
     if msg.code == loirc::Code::RplWelcome {
         if let Err(e) = irc_writer.raw(format!("JOIN {}\n", gruik_config.irc.channel)) {
-            dbg!("{e}");
+            println!("Couldn't send the 'JOIN' command{:?}", e);
         }
         return;
     }
@@ -227,8 +227,7 @@ fn main() {
 
     // register
     if let Err(e) = irc_writer.raw(format!("NICK {}\n", &gruik_config.irc.nick)) {
-        println!("Can't send the 'NICK' command :");
-        dbg!("{e}");
+        println!("Can't send the 'NICK' command : {:?}", e);
         std::process::exit(1);
     }
 
@@ -236,8 +235,7 @@ fn main() {
         "USER {} 0 * :{}\n",
         &gruik_config.irc.nick, &gruik_config.irc.nick
     )) {
-        println!("Can't send the 'USER' command :");
-        dbg!("{e}");
+        println!("Can't send the 'USER' command : {:?}", e);
         std::process::exit(1);
     }
     // *Warning*, this is a *blocking* function!
