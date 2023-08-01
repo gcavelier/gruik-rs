@@ -151,27 +151,19 @@ fn main() {
     };
 
     // register
-    let res = irc_writer.raw(format!("NICK {}\n", &gruik_config.irc.nick));
-    match res {
-        Ok(r) => (),
-        Err(e) => {
-            println!("Can't send the 'NICK' command :");
-            dbg!("{e}");
-            std::process::exit(1);
-        }
+    if let Err(e) = irc_writer.raw(format!("NICK {}\n", &gruik_config.irc.nick)) {
+        println!("Can't send the 'NICK' command :");
+        dbg!("{e}");
+        std::process::exit(1);
     }
 
-    let res = irc_writer.raw(format!(
+    if let Err(e) = irc_writer.raw(format!(
         "USER {} 0 * :{}\n",
         &gruik_config.irc.nick, &gruik_config.irc.nick
-    ));
-    match res {
-        Ok(r) => (),
-        Err(e) => {
-            println!("Can't send the 'USER' command :");
-            dbg!("{e}");
-            std::process::exit(1);
-        }
+    )) {
+        println!("Can't send the 'USER' command :");
+        dbg!("{e}");
+        std::process::exit(1);
     }
     // *Warning*, this is a *blocking* function!
     handle_irc_messages(&gruik_config, &irc_writer, &irc_reader);
