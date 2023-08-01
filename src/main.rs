@@ -85,8 +85,14 @@ fn handle_irc_messages(
         match event {
             loirc::Event::Message(msg) => {
                 if msg.code == loirc::Code::Ping {
-                    if let Err(e) = irc_writer.raw(format!("PONG :{}\n", msg.args.get(0).unwrap()))
-                    {
+                    let ping_arg = match msg.args.get(0) {
+                        Some(r) => r,
+                        None => {
+                            println!("Can't get ping argument! exiting.");
+                            std::process::exit(1);
+                        }
+                    };
+                    if let Err(e) = irc_writer.raw(format!("PONG :{}\n", ping_arg)) {
                         dbg!("{e}");
                     }
                 } else if msg.code == loirc::Code::RplWelcome {
