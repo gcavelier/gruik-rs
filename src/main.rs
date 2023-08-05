@@ -29,8 +29,8 @@ impl Default for IrcConfig {
         IrcConfig {
             server: "irc.libera.chat".to_string(),
             nick: "gruik".to_string(),
-            channel: "goaste".to_string(),
-            xchannels: vec!["goaste2".to_string()],
+            channel: "#goaste".to_string(),
+            xchannels: vec!["#goaste2".to_string()],
             password: None,
             debug: false,
             port: 6667,
