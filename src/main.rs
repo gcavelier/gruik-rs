@@ -97,7 +97,12 @@ fn handle_irc_messages(gruik_config: &GruikConfig, irc_writer: &loirc::Writer, m
      */
     if msg.code == loirc::Code::RplWelcome {
         if let Err(e) = irc_writer.raw(format!("JOIN {}\n", gruik_config.irc.channel)) {
-            println!("Couldn't send the 'JOIN' command{:?}", e);
+            println!("Couldn't join {} : {:?}", gruik_config.irc.channel, e);
+        }
+        for channel in &gruik_config.irc.xchannels {
+            if let Err(e) = irc_writer.raw(format!("JOIN {}\n", channel)) {
+                println!("Couldn't join {} : {:?}", channel, e);
+            }
         }
         return;
     }

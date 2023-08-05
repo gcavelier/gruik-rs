@@ -8,7 +8,7 @@ To be complete, the following features are needed :
 - [X] Read a yaml config file
 - [ ] Hot reloading of the configuration when the yaml file is changed
 - [X] Connect to an IRC server
-- [ ] Join configured xchannels
+- [X] Join configured xchannels
 - [ ] Handle private messages
 - [ ] Fetch and post news from RSS feeds
 - [ ] Handle IRC disconnects
