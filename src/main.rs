@@ -201,7 +201,7 @@ fn main() {
     let yaml = match fs::read_to_string(config_filename) {
         Ok(r) => r,
         Err(e) => {
-            println!("Can't read '{config_filename}' : {e}");
+            println!("Can't read '{config_filename}' : {e}\nexiting.");
             std::process::exit(1);
         }
     };
@@ -209,7 +209,7 @@ fn main() {
     let gruik_config: GruikConfig = match serde_yaml::from_str(&yaml) {
         Ok(r) => r,
         Err(e) => {
-            println!("Can't parse '{config_filename}' : {e}");
+            println!("Can't parse '{config_filename}' : {e}\nexiting.");
             std::process::exit(1);
         }
     };
@@ -225,14 +225,14 @@ fn main() {
     ) {
         Ok(r) => r,
         Err(e) => {
-            println!("Can't connect to IRC server : {e}");
+            println!("Can't connect to IRC server : {e}\nexiting.");
             std::process::exit(1);
         }
     };
 
     // register
     if let Err(e) = irc_writer.raw(format!("NICK {}\n", &gruik_config.irc.nick)) {
-        println!("Can't send the 'NICK' command : {:?}", e);
+        println!("Can't send the 'NICK' command : {:?}\nexiting.", e);
         std::process::exit(1);
     }
 
@@ -240,7 +240,7 @@ fn main() {
         "USER {} 0 * :{}\n",
         &gruik_config.irc.nick, &gruik_config.irc.nick
     )) {
-        println!("Can't send the 'USER' command : {:?}", e);
+        println!("Can't send the 'USER' command : {:?}\nexiting.", e);
         std::process::exit(1);
     }
     // *Warning*, this is a *blocking* function!
