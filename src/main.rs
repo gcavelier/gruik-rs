@@ -88,7 +88,7 @@ fn handle_irc_messages(gruik_config: &GruikConfig, irc_writer: &loirc::Writer, m
             }
         };
         if let Err(e) = irc_writer.raw(format!("PONG :{}\n", ping_arg)) {
-            println!("Couldn't send the 'JOIN' command{:?}", e);
+            println!("Couldn't send the 'PONG' command{:?}", e);
         }
         return;
     }
