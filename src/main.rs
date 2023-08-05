@@ -36,10 +36,10 @@ impl Default for IrcConfig {
             port: 6667,
             delay: "2s".to_string(),
             colors: HashMap::from([
-                (String::from("origin"), String::from("pink")),
-                (String::from("title"), String::from("bold")),
-                (String::from("hash"), String::from("lightgrey")),
-                (String::from("link"), String::from("lightblue")),
+                ("origin".to_string(), "pink".to_string()),
+                ("title".to_string(), "bold".to_string()),
+                ("hash".to_string(), "lightgrey".to_string()),
+                ("link".to_string(), "lightblue".to_string()),
             ]),
             ops: vec![],
         }
@@ -61,8 +61,8 @@ impl Default for FeedsConfig {
         FeedsConfig {
             urls: vec![],
             maxnews: 10,
-            maxage: String::from("1h"),
-            frequency: String::from("10m"),
+            maxage: "1h".to_string(),
+            frequency: "10m".to_string(),
             ringsize: 100,
         }
     }
