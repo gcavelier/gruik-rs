@@ -20,7 +20,7 @@ To be complete, the following features are needed :
 
 To start a local IRC server :
 ```sh
-docker run --name inspircd -p 6667:6667 -e "INSP_ENABLE_DNSBL=no" -e "INSP_SERVER_NAME=irc.example.com" inspircd/inspircd-docker
+docker run --rm --name inspircd -p 6667:6667 -e "INSP_ENABLE_DNSBL=no" -e "INSP_SERVER_NAME=irc.example.com" inspircd/inspircd-docker --debug
 ```
 
 # IRC Numerics
