@@ -2,12 +2,11 @@ use encoding;
 use loirc;
 use loirc::Message;
 use loirc::Prefix::{Server, User};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use serde_json;
 use serde_yaml;
-use std::collections::HashMap;
-use std::env;
-use std::fs;
-use std::time::Duration;
+use std::io::{Read, Write};
+use std::{collections::HashMap, env, fs, sync::Arc, sync::Mutex, thread, time::Duration};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields, default)]
@@ -75,7 +74,22 @@ struct GruikConfig {
     feeds: FeedsConfig,
 }
 
-fn handle_irc_messages(gruik_config: &GruikConfig, irc_writer: &loirc::Writer, msg: Message) {
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct News {
+    origin: String,
+    title: String,
+    link: String,
+    date: String,
+    hash: String,
+}
+
+fn handle_irc_messages(
+    gruik_config: &GruikConfig,
+    irc_writer: &loirc::Writer,
+    msg: Message,
+    news_list: &Arc<Mutex<Vec<News>>>,
+) {
     /*
      * PING
      */
@@ -174,6 +188,7 @@ fn handle_irc_events(
     gruik_config: &GruikConfig,
     irc_writer: &loirc::Writer,
     irc_reader: &loirc::Reader,
+    news_list: Arc<Mutex<Vec<News>>>,
 ) {
     for event in irc_reader.iter() {
         if gruik_config.irc.debug {
@@ -181,12 +196,59 @@ fn handle_irc_events(
         }
         match event {
             loirc::Event::Message(msg) => {
-                handle_irc_messages(gruik_config, irc_writer, msg);
+                handle_irc_messages(gruik_config, irc_writer, msg, &news_list);
             }
             _ => {
                 println!("Don't know what to do with the following event :");
                 dbg!(event);
             }
+        }
+    }
+}
+
+/*
+ * This function runs in its own thread
+ *
+ * Fetch and post news from RSS feeds
+ */
+fn news_fetch(config: Arc<GruikConfig>, news_list: Arc<Mutex<Vec<News>>>) {
+    let feed_file = config.irc.channel.to_owned() + "-feed.json";
+
+    // load saved news
+    let mut f = match fs::OpenOptions::new()
+        .write(true)
+        .read(true)
+        .create(true)
+        .open(&feed_file)
+    {
+        Ok(r) => r,
+        Err(e) => {
+            println!("Can't open {} : {}", feed_file, e);
+            std::process::exit(1);
+        }
+    };
+
+    let mut buf = String::new();
+    f.read_to_string(&mut buf).unwrap_or(0);
+    *news_list.lock().unwrap() = serde_json::from_str(&buf).unwrap_or(vec![]);
+
+    for feed_url in &config.feeds.urls {
+        println!("Fetching {feed_url}");
+    }
+
+    // save news list to disk to avoid repost when restarting
+    match f.set_len(0) {
+        Ok(_) => {
+            if let Err(e) = f.write_all(
+                serde_json::to_string(&*news_list.lock().unwrap())
+                    .unwrap_or("".to_string())
+                    .as_bytes(),
+            ) {
+                println!("Failed to write {} : {}", feed_file, e);
+            }
+        }
+        Err(e) => {
+            println!("Failed to truncate {} : {}", feed_file, e);
         }
     }
 }
@@ -206,8 +268,8 @@ fn main() {
         }
     };
 
-    let gruik_config: GruikConfig = match serde_yaml::from_str(&yaml) {
-        Ok(r) => r,
+    let gruik_config: Arc<GruikConfig> = match serde_yaml::from_str(&yaml) {
+        Ok(r) => Arc::new(r),
         Err(e) => {
             println!("Can't parse '{config_filename}' : {e}\nexiting.");
             std::process::exit(1);
@@ -243,6 +305,12 @@ fn main() {
         println!("Can't send the 'USER' command : {:?}\nexiting.", e);
         std::process::exit(1);
     }
+
+    let gruik_config_clone = gruik_config.clone();
+    let news_list: Arc<Mutex<Vec<News>>> = Arc::new(Mutex::new(Vec::new()));
+    let news_list_clone = news_list.clone();
+    thread::spawn(|| news_fetch(gruik_config_clone, news_list_clone));
+
     // *Warning*, this is a *blocking* function!
-    handle_irc_events(&gruik_config, &irc_writer, &irc_reader);
+    handle_irc_events(&gruik_config, &irc_writer, &irc_reader, news_list);
 }

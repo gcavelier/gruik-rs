@@ -10,8 +10,8 @@ To be complete, the following features are needed :
 - [X] Connect to an IRC server
 - [X] Join configured xchannels
 - [ ] Handle private messages
-- [ ] Load news list from a JSON file
-- [ ] Write news list to a JSON file
+- [X] Load news list from a JSON file
+- [X] Write news list to a JSON file
 - [ ] Fetch and parse RSS feeds
 - [ ] Post RSS news
 - [ ] Handle IRC disconnects
