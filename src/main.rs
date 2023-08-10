@@ -304,7 +304,7 @@ fn news_fetch(config: Arc<GruikConfig>, news_list: Arc<Mutex<VecDeque<News>>>) {
                             println!("too many lines to post");
                             break;
                         }
-                        //client.Cmd.Message(channel, fmtNews(news))
+
                         thread::sleep(config.irc.delay.to_std().unwrap());
 
                         // Mark item as posted
