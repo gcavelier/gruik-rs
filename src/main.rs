@@ -312,7 +312,7 @@ fn news_fetch(config: Arc<GruikConfig>, news_list: Arc<Mutex<VecDeque<News>>>) {
                             let mut news_list_guarded = news_list.lock().unwrap();
 
                             news_list_guarded.push_back(news);
-                            if news_list_guarded.len() < config.feeds.ringsize {
+                            if news_list_guarded.len() > config.feeds.ringsize {
                                 news_list_guarded.pop_front();
                             }
                         }
