@@ -12,7 +12,7 @@ To be complete, the following features are needed :
 - [ ] Handle private messages
 - [X] Load news list from a JSON file
 - [X] Write news list to a JSON file
-- [ ] Fetch and parse RSS feeds
+- [X] Fetch and parse RSS feeds
 - [ ] Post RSS news
 - [ ] Handle IRC disconnects
 

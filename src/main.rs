@@ -1,12 +1,19 @@
+use base16ct;
+use chrono::{DateTime, Duration, Utc};
+use duration_str::deserialize_duration_chrono;
 use encoding;
+use feed_rs;
 use loirc;
 use loirc::Message;
 use loirc::Prefix::{Server, User};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use serde_yaml;
+use sha2::{Digest, Sha256};
+use std::collections::VecDeque;
 use std::io::{Read, Write};
-use std::{collections::HashMap, env, fs, sync::Arc, sync::Mutex, thread, time::Duration};
+use std::{collections::HashMap, env, fs, sync::Arc, sync::Mutex, thread};
+use ureq;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields, default)]
@@ -18,7 +25,8 @@ struct IrcConfig {
     password: Option<String>,
     debug: bool,
     port: u16,
-    delay: String,
+    #[serde(deserialize_with = "deserialize_duration_chrono")]
+    delay: Duration,
     colors: HashMap<String, String>,
     ops: Vec<String>,
 }
@@ -33,7 +41,7 @@ impl Default for IrcConfig {
             password: None,
             debug: false,
             port: 6667,
-            delay: "2s".to_string(),
+            delay: Duration::seconds(2),
             colors: HashMap::from([
                 ("origin".to_string(), "pink".to_string()),
                 ("title".to_string(), "bold".to_string()),
@@ -50,9 +58,11 @@ impl Default for IrcConfig {
 struct FeedsConfig {
     urls: Vec<String>,
     maxnews: u16,
-    maxage: String,
-    frequency: String,
-    ringsize: u16,
+    #[serde(deserialize_with = "deserialize_duration_chrono")]
+    maxage: Duration,
+    #[serde(deserialize_with = "deserialize_duration_chrono")]
+    frequency: Duration,
+    ringsize: usize,
 }
 
 impl Default for FeedsConfig {
@@ -60,8 +70,8 @@ impl Default for FeedsConfig {
         FeedsConfig {
             urls: vec![],
             maxnews: 10,
-            maxage: "1h".to_string(),
-            frequency: "10m".to_string(),
+            maxage: Duration::hours(1),
+            frequency: Duration::minutes(10),
             ringsize: 100,
         }
     }
@@ -79,8 +89,8 @@ struct GruikConfig {
 struct News {
     origin: String,
     title: String,
-    link: String,
-    date: String,
+    links: Vec<String>,
+    date: DateTime<Utc>,
     hash: String,
 }
 
@@ -88,7 +98,7 @@ fn handle_irc_messages(
     gruik_config: &GruikConfig,
     irc_writer: &loirc::Writer,
     msg: Message,
-    news_list: &Arc<Mutex<Vec<News>>>,
+    news_list: &Arc<Mutex<VecDeque<News>>>,
 ) {
     /*
      * PING
@@ -188,7 +198,7 @@ fn handle_irc_events(
     gruik_config: &GruikConfig,
     irc_writer: &loirc::Writer,
     irc_reader: &loirc::Reader,
-    news_list: Arc<Mutex<Vec<News>>>,
+    news_list: Arc<Mutex<VecDeque<News>>>,
 ) {
     for event in irc_reader.iter() {
         if gruik_config.irc.debug {
@@ -206,12 +216,25 @@ fn handle_irc_events(
     }
 }
 
+fn mk_hash(links: &Vec<String>) -> String {
+    base16ct::lower::encode_string(&Sha256::digest(links.join("")))[..8].to_string()
+}
+
+fn news_exists(news: &News, news_list: &Arc<Mutex<VecDeque<News>>>) -> bool {
+    for n in news_list.lock().unwrap().iter() {
+        if n.hash == news.hash {
+            return true;
+        }
+    }
+    false
+}
+
 /*
  * This function runs in its own thread
  *
  * Fetch and post news from RSS feeds
  */
-fn news_fetch(config: Arc<GruikConfig>, news_list: Arc<Mutex<Vec<News>>>) {
+fn news_fetch(config: Arc<GruikConfig>, news_list: Arc<Mutex<VecDeque<News>>>) {
     let feed_file = config.irc.channel.to_owned() + "-feed.json";
 
     // load saved news
@@ -230,10 +253,79 @@ fn news_fetch(config: Arc<GruikConfig>, news_list: Arc<Mutex<Vec<News>>>) {
 
     let mut buf = String::new();
     f.read_to_string(&mut buf).unwrap_or(0);
-    *news_list.lock().unwrap() = serde_json::from_str(&buf).unwrap_or(vec![]);
+    *news_list.lock().unwrap() = serde_json::from_str(&buf).unwrap_or(VecDeque::new());
 
     for feed_url in &config.feeds.urls {
         println!("Fetching {feed_url}");
+        let response = ureq::get(&feed_url).call();
+        if response.is_ok() {
+            let body = response.unwrap().into_string();
+            if body.is_ok() {
+                let feed = feed_rs::parser::parse(body.unwrap().as_bytes());
+                if feed.is_ok() {
+                    let feed = feed.unwrap();
+                    let mut i = 0;
+                    for item in feed.entries {
+                        let origin = match feed.title {
+                            Some(ref r) => r.content.to_owned(),
+                            None => "Unknown".to_string(),
+                        };
+                        let date = match item.published {
+                            Some(r) => r,
+                            None => Utc::now(),
+                        };
+                        let title = match item.title {
+                            Some(r) => r.content,
+                            None => "Unknown".to_string(),
+                        };
+                        let mut links = vec![];
+                        for link in item.links {
+                            links.push(link.href);
+                        }
+                        let news = News {
+                            origin: origin,
+                            date: date,
+                            title: title,
+                            hash: mk_hash(&links),
+                            links: links,
+                        };
+                        // Check if item was already posted
+                        if news_exists(&news, &news_list) {
+                            println!("already posted {} ({})", news.title, news.hash);
+                            continue;
+                        }
+                        // don't paste news older than feeds.maxage
+                        if Utc::now() - news.date > config.feeds.maxage {
+                            println!("news too old {}", news.date);
+                            continue;
+                        }
+                        i = i + 1;
+                        if i > config.feeds.maxnews {
+                            println!("too many lines to post");
+                            break;
+                        }
+                        //client.Cmd.Message(channel, fmtNews(news))
+                        thread::sleep(config.irc.delay.to_std().unwrap());
+
+                        // Mark item as posted
+                        {
+                            let mut news_list_guarded = news_list.lock().unwrap();
+
+                            news_list_guarded.push_back(news);
+                            if news_list_guarded.len() < config.feeds.ringsize {
+                                news_list_guarded.pop_front();
+                            }
+                        }
+                    }
+                } else {
+                    println!("Failed to parse feed : {:?}", feed.err());
+                }
+            } else {
+                println!("Failed to got body : {:?}", body.err());
+            }
+        } else {
+            println!("Failed to get a response : {:?}", response.err());
+        }
     }
 
     // save news list to disk to avoid repost when restarting
@@ -280,8 +372,8 @@ fn main() {
         format!("{}:{}", gruik_config.irc.server, gruik_config.irc.port),
         loirc::ReconnectionSettings::Reconnect {
             max_attempts: 10,
-            delay_between_attempts: Duration::from_secs(2),
-            delay_after_disconnect: Duration::from_secs(2),
+            delay_between_attempts: std::time::Duration::from_secs(2),
+            delay_after_disconnect: std::time::Duration::from_secs(2),
         },
         encoding::all::UTF_8,
     ) {
@@ -307,7 +399,7 @@ fn main() {
     }
 
     let gruik_config_clone = gruik_config.clone();
-    let news_list: Arc<Mutex<Vec<News>>> = Arc::new(Mutex::new(Vec::new()));
+    let news_list: Arc<Mutex<VecDeque<News>>> = Arc::new(Mutex::new(VecDeque::new()));
     let news_list_clone = news_list.clone();
     thread::spawn(|| news_fetch(gruik_config_clone, news_list_clone));
 
