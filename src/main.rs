@@ -255,93 +255,99 @@ fn news_fetch(config: Arc<GruikConfig>, news_list: Arc<Mutex<VecDeque<News>>>) {
     f.read_to_string(&mut buf).unwrap_or(0);
     *news_list.lock().unwrap() = serde_json::from_str(&buf).unwrap_or(VecDeque::new());
 
-    for feed_url in &config.feeds.urls {
-        println!("Fetching {feed_url}");
-        let response = ureq::get(&feed_url).call();
-        if response.is_ok() {
-            let body = response.unwrap().into_string();
-            if body.is_ok() {
-                let feed = feed_rs::parser::parse(body.unwrap().as_bytes());
-                if feed.is_ok() {
-                    let feed = feed.unwrap();
-                    let mut i = 0;
-                    for item in feed.entries {
-                        let origin = match feed.title {
-                            Some(ref r) => r.content.to_owned(),
-                            None => "Unknown".to_string(),
-                        };
-                        let date = match item.published {
-                            Some(r) => r,
-                            None => Utc::now(),
-                        };
-                        let title = match item.title {
-                            Some(r) => r.content,
-                            None => "Unknown".to_string(),
-                        };
-                        let mut links = vec![];
-                        for link in item.links {
-                            links.push(link.href);
-                        }
-                        let news = News {
-                            origin: origin,
-                            date: date,
-                            title: title,
-                            hash: mk_hash(&links),
-                            links: links,
-                        };
-                        // Check if item was already posted
-                        if news_exists(&news, &news_list) {
-                            println!("already posted {} ({})", news.title, news.hash);
-                            continue;
-                        }
-                        // don't paste news older than feeds.maxage
-                        if Utc::now() - news.date > config.feeds.maxage {
-                            println!("news too old {}", news.date);
-                            continue;
-                        }
-                        i = i + 1;
-                        if i > config.feeds.maxnews {
-                            println!("too many lines to post");
-                            break;
-                        }
+    loop {
+        for feed_url in &config.feeds.urls {
+            println!("Fetching {feed_url}");
+            let response = ureq::get(&feed_url).call();
+            if response.is_ok() {
+                let body = response.unwrap().into_string();
+                if body.is_ok() {
+                    let feed = feed_rs::parser::parse(body.unwrap().as_bytes());
+                    if feed.is_ok() {
+                        let feed = feed.unwrap();
+                        let mut i = 0;
+                        for item in feed.entries {
+                            let origin = match feed.title {
+                                Some(ref r) => r.content.to_owned(),
+                                None => "Unknown".to_string(),
+                            };
+                            let date = match item.published {
+                                Some(r) => r,
+                                None => Utc::now(),
+                            };
+                            let title = match item.title {
+                                Some(r) => r.content,
+                                None => "Unknown".to_string(),
+                            };
+                            let mut links = vec![];
+                            for link in item.links {
+                                links.push(link.href);
+                            }
+                            let news = News {
+                                origin: origin,
+                                date: date,
+                                title: title,
+                                hash: mk_hash(&links),
+                                links: links,
+                            };
+                            // Check if item was already posted
+                            if news_exists(&news, &news_list) {
+                                println!("already posted {} ({})", news.title, news.hash);
+                                continue;
+                            }
+                            // don't paste news older than feeds.maxage
+                            if Utc::now() - news.date > config.feeds.maxage {
+                                println!("news too old {}", news.date);
+                                continue;
+                            }
+                            i = i + 1;
+                            if i > config.feeds.maxnews {
+                                println!("too many lines to post");
+                                break;
+                            }
 
-                        thread::sleep(config.irc.delay.to_std().unwrap());
+                            // TODO !!!
+                            //client.Cmd.Message(channel, fmtNews(news));
+                            thread::sleep(config.irc.delay.to_std().unwrap());
 
-                        // Mark item as posted
-                        {
-                            let mut news_list_guarded = news_list.lock().unwrap();
+                            // Mark item as posted
+                            {
+                                let mut news_list_guarded = news_list.lock().unwrap();
 
-                            news_list_guarded.push_back(news);
-                            if news_list_guarded.len() > config.feeds.ringsize {
-                                news_list_guarded.pop_front();
+                                news_list_guarded.push_back(news);
+                                if news_list_guarded.len() > config.feeds.ringsize {
+                                    news_list_guarded.pop_front();
+                                }
                             }
                         }
+                    } else {
+                        println!("Failed to parse feed : {:?}", feed.err());
                     }
                 } else {
-                    println!("Failed to parse feed : {:?}", feed.err());
+                    println!("Failed to got body : {:?}", body.err());
                 }
             } else {
-                println!("Failed to got body : {:?}", body.err());
+                println!("Failed to get a response : {:?}", response.err());
             }
-        } else {
-            println!("Failed to get a response : {:?}", response.err());
         }
-    }
 
-    // save news list to disk to avoid repost when restarting
-    match f.set_len(0) {
-        Ok(_) => {
-            if let Err(e) = f.write_all(
-                serde_json::to_string(&*news_list.lock().unwrap())
-                    .unwrap_or("".to_string())
-                    .as_bytes(),
-            ) {
-                println!("Failed to write {} : {}", feed_file, e);
+        // save news list to disk to avoid repost when restarting
+        match f.set_len(0) {
+            Ok(_) => {
+                if let Err(e) = f.write_all(
+                    serde_json::to_string(&*news_list.lock().unwrap())
+                        .unwrap_or("".to_string())
+                        .as_bytes(),
+                ) {
+                    println!("Failed to write {} : {}", feed_file, e);
+                }
+            }
+            Err(e) => {
+                println!("Failed to truncate {} : {}", feed_file, e);
             }
         }
-        Err(e) => {
-            println!("Failed to truncate {} : {}", feed_file, e);
-        }
+
+        thread::sleep(config.feeds.frequency.to_std().unwrap());
     }
 }
 fn main() {
