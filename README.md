@@ -13,7 +13,7 @@ To be complete, the following features are needed :
 - [X] Load news list from a JSON file
 - [X] Write news list to a JSON file
 - [X] Fetch and parse RSS feeds
-- [ ] Post RSS news
+- [X] Post RSS news
 - [ ] Handle IRC disconnects
 
 # Notes

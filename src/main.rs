@@ -229,12 +229,35 @@ fn news_exists(news: &News, news_list: &Arc<Mutex<VecDeque<News>>>) -> bool {
     false
 }
 
+fn fmt_news(news: &News) -> String {
+    format!(
+        "[{}{}{}] {}{}{} {}{}{} {}#{}{}",
+        "\x0313",
+        news.origin,
+        "\x0f",
+        "\x02",
+        news.title,
+        "\x0f",
+        "\x0312",
+        news.links.get(0).unwrap(),
+        "\x0f",
+        "\x0315",
+        news.hash,
+        "\x0f"
+    )
+    .to_string()
+}
+
 /*
  * This function runs in its own thread
  *
  * Fetch and post news from RSS feeds
  */
-fn news_fetch(config: Arc<GruikConfig>, news_list: Arc<Mutex<VecDeque<News>>>) {
+fn news_fetch(
+    config: Arc<GruikConfig>,
+    news_list: Arc<Mutex<VecDeque<News>>>,
+    irc_writer: loirc::Writer,
+) {
     let feed_file = config.irc.channel.to_owned() + "-feed.json";
 
     // load saved news
@@ -306,8 +329,13 @@ fn news_fetch(config: Arc<GruikConfig>, news_list: Arc<Mutex<VecDeque<News>>>) {
                                 break;
                             }
 
-                            // TODO !!!
-                            //client.Cmd.Message(channel, fmtNews(news));
+                            if let Err(e) = irc_writer.raw(format!(
+                                "PRIVMSG {} {}\n",
+                                &config.irc.channel,
+                                fmt_news(&news)
+                            )) {
+                                println!("Failed to send an IRC message... ({:?})", e);
+                            }
                             thread::sleep(config.irc.delay.to_std().unwrap());
 
                             // Mark item as posted
@@ -407,7 +435,8 @@ fn main() {
     let gruik_config_clone = gruik_config.clone();
     let news_list: Arc<Mutex<VecDeque<News>>> = Arc::new(Mutex::new(VecDeque::new()));
     let news_list_clone = news_list.clone();
-    thread::spawn(|| news_fetch(gruik_config_clone, news_list_clone));
+    let irc_writer_clone = irc_writer.clone();
+    thread::spawn(|| news_fetch(gruik_config_clone, news_list_clone, irc_writer_clone));
 
     // *Warning*, this is a *blocking* function!
     handle_irc_events(&gruik_config, &irc_writer, &irc_reader, news_list);
