@@ -16,6 +16,13 @@ To be complete, the following features are needed :
 - [X] Post RSS news
 - [ ] Handle IRC disconnects
 
+# Enhancements to implement
+
+- [ ] Deserialize colors (IrcConfig.colors.{origin,title,hash,link}) to an enum to check if their values are ok
+- [ ] Reduce the use of unwrap()
+- [ ] Use an async runtime instead of threads
+- [ ] Better error handling
+
 # Notes
 
 To start a local IRC server :
