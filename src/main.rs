@@ -135,14 +135,32 @@ fn handle_irc_messages(
      */
     if msg.code == loirc::Code::Privmsg {
         let empty_str = "".to_string();
-        let msg_target = msg.args.get(0).unwrap_or(&empty_str);
+        let msg_source: String = match msg.prefix {
+            Some(p) => match p {
+                User(u) => u.nickname,
+                Server(s) => s,
+            },
+            None => "".to_string(),
+        };
         let msg_str = msg.args.get(1).unwrap_or(&empty_str);
+        let msg_args: Vec<&str> = msg_str.split(" ").collect();
+        let (_, msg_args) = msg_args.split_at(1);
 
         /*
          * !lsfeeds
          */
         if msg_str.starts_with("!lsfeeds") {
-            println!("NOT IMPLEMENTED: !lsfeeds");
+            for (i, feed) in config.feeds.urls.iter().enumerate() {
+                if let Err(e) = irc_writer.raw(format!(
+                    "PRIVMSG {} {}\n",
+                    &msg_source,
+                    format!("{}. {}", i.to_string(), feed)
+                )) {
+                    println!("Failed to send an IRC message... ({:?})", e);
+                } else {
+                    thread::sleep(config.irc.delay.to_std().unwrap());
+                }
+            }
         }
         /*
          * !xpost
@@ -158,13 +176,6 @@ fn handle_irc_messages(
         }
 
         // All commands below requires OP
-        let msg_source: String = match msg.prefix {
-            Some(p) => match p {
-                User(u) => u.nickname,
-                Server(s) => s,
-            },
-            None => "".to_string(),
-        };
         if !config.irc.ops.contains(&msg_source) {
             return;
         }
