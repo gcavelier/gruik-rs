@@ -502,7 +502,7 @@ fn news_fetch(
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    let config_filename = args.get(1).map_or("config.yml", |s| s);
+    let config_filename = args.get(1).map_or("config.yaml", |s| s);
 
     let yaml = match fs::read_to_string(config_filename) {
         Ok(r) => r,
