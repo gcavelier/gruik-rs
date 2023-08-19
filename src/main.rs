@@ -134,13 +134,13 @@ fn handle_irc_messages(
      * PRIVMSG
      */
     if msg.code == loirc::Code::Privmsg {
-        let empty_str = "".to_string();
+        let empty_str = String::new();
         let msg_source: String = match msg.prefix {
             Some(p) => match p {
                 User(u) => u.nickname,
                 Server(s) => s,
             },
-            None => "".to_string(),
+            None => String::new(),
         };
         let msg_str = msg.args.get(1).unwrap_or(&empty_str);
         let msg_args: Vec<&str> = msg_str.split(" ").collect();
@@ -167,7 +167,7 @@ fn handle_irc_messages(
          */
         else if msg_str.starts_with("!xpost") {
             let hash = match msg_args.get(0) {
-                None => "".to_string(),
+                None => String::new(),
                 Some(h) => h.replace('#', ""),
             };
 
@@ -485,7 +485,7 @@ fn news_fetch(
             Ok(_) => {
                 if let Err(e) = f.write_all(
                     serde_json::to_string(&*news_list.lock().unwrap())
-                        .unwrap_or("".to_string())
+                        .unwrap_or(String::new())
                         .as_bytes(),
                 ) {
                     println!("Failed to write {feed_file} : {e}");
