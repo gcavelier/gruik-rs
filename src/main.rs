@@ -463,9 +463,10 @@ fn news_fetch(
                             {
                                 let mut news_list_guarded = news_list.lock().unwrap();
 
-                                news_list_guarded.push_back(news);
                                 if news_list_guarded.len() > config.feeds.ringsize {
                                     news_list_guarded.pop_front();
+                                } else {
+                                    news_list_guarded.push_back(news);
                                 }
                             }
                         }
