@@ -166,7 +166,32 @@ fn handle_irc_messages(
          * !xpost
          */
         else if msg_str.starts_with("!xpost") {
-            println!("NOT IMPLEMENTED: !xpost");
+            let hash = match msg_args.get(0) {
+                None => "".to_string(),
+                Some(h) => h.replace("#", ""),
+            };
+
+            for news in news_list.lock().unwrap().iter() {
+                println!("{}", news.hash);
+                if news.hash == hash {
+                    for channel in &config.irc.xchannels {
+                        if let Err(e) = irc_writer.raw(format!(
+                            "PRIVMSG {} {}\n",
+                            &channel,
+                            format!(
+                                "{} (from {} on {})",
+                                fmt_news(news),
+                                msg_source,
+                                config.irc.channel
+                            )
+                        )) {
+                            println!("Failed to send an IRC message... ({:?})", e);
+                        } else {
+                            thread::sleep(config.irc.delay.to_std().unwrap());
+                        }
+                    }
+                }
+            }
         }
         /*
          * !latest
