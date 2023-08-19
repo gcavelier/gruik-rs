@@ -319,7 +319,7 @@ fn handle_irc_events(
     gruik_config: &GruikConfig,
     irc_writer: &loirc::Writer,
     irc_reader: &loirc::Reader,
-    news_list: Arc<Mutex<VecDeque<News>>>,
+    news_list: &Arc<Mutex<VecDeque<News>>>,
 ) {
     for event in irc_reader.iter() {
         if gruik_config.irc.debug {
@@ -375,9 +375,9 @@ fn fmt_news(news: &News) -> String {
  * Fetch and post news from RSS feeds
  */
 fn news_fetch(
-    config: Arc<GruikConfig>,
-    news_list: Arc<Mutex<VecDeque<News>>>,
-    irc_writer: loirc::Writer,
+    config: &Arc<GruikConfig>,
+    news_list: &Arc<Mutex<VecDeque<News>>>,
+    irc_writer: &loirc::Writer,
 ) {
     let feed_file = config.irc.channel.to_owned() + "-feed.json";
 
@@ -555,8 +555,8 @@ fn main() {
     let news_list: Arc<Mutex<VecDeque<News>>> = Arc::new(Mutex::new(VecDeque::new()));
     let news_list_clone = news_list.clone();
     let irc_writer_clone = irc_writer.clone();
-    thread::spawn(|| news_fetch(gruik_config_clone, news_list_clone, irc_writer_clone));
+    thread::spawn(move || news_fetch(&gruik_config_clone, &news_list_clone, &irc_writer_clone));
 
     // *Warning*, this is a *blocking* function!
-    handle_irc_events(&gruik_config, &irc_writer, &irc_reader, news_list);
+    handle_irc_events(&gruik_config, &irc_writer, &irc_reader, &news_list);
 }
