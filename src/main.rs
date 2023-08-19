@@ -233,7 +233,11 @@ fn handle_irc_messages(
             {
                 let news_list_guarded = news_list.lock().unwrap();
                 if origin.len() == 0 {
-                    let len = news_list_guarded.len() - 1;
+                    let len = if news_list_guarded.len() > 1 {
+                        news_list_guarded.len() - 1
+                    } else {
+                        0
+                    };
                     if n > len {
                         n = len;
                     }
@@ -254,7 +258,11 @@ fn handle_irc_messages(
                         .iter()
                         .filter(|x| *x.origin == origin)
                         .collect();
-                    let len = show_news.len() - 1;
+                    let len = if show_news.len() > 1 {
+                        show_news.len() - 1
+                    } else {
+                        0
+                    };
                     if n > len {
                         n = len;
                     }
