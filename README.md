@@ -32,3 +32,8 @@ docker run --rm --name inspircd -p 6667:6667 -e "INSP_ENABLE_DNSBL=no" -e "INSP_
 
 # IRC Numerics
 https://modern.ircdocs.horse/#numerics
+
+# Clippy parameters
+```sh
+cargo clippy -- -W clippy::pedantic -W clippy::nursery -W clippy::unwrap_used
+```
