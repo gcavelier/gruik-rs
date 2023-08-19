@@ -14,7 +14,7 @@ To be complete, the following features are needed :
 - [X] Write news list to a JSON file
 - [X] Fetch and parse RSS feeds
 - [X] Post RSS news
-- [ ] Handle IRC disconnects
+- [X] Handle IRC disconnects
 
 # Enhancements to implement
 
