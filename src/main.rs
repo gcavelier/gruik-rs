@@ -197,7 +197,83 @@ fn handle_irc_messages(
          * !latest
          */
         else if msg_str.starts_with("!latest") {
-            println!("NOT IMPLEMENTED: !latest");
+            if msg_args.len() < 1 {
+                if let Err(e) = irc_writer.raw(format!(
+                    "PRIVMSG {} {}\n",
+                    msg_source, "usage: !latest <number> [origin]"
+                )) {
+                    println!("Failed to send an IRC message... ({:?})", e);
+                } else {
+                    thread::sleep(config.irc.delay.to_std().unwrap());
+                }
+                return;
+            }
+
+            // n == number of news to show
+            let mut n = match msg_args.get(0) {
+                None => 0,
+                Some(arg) => match arg.parse() {
+                    Err(_) => {
+                        if let Err(e) = irc_writer.raw(format!(
+                            "PRIVMSG {} {}\n",
+                            msg_source, "!latest : conversion error"
+                        )) {
+                            println!("Failed to send an IRC message... ({:?})", e);
+                        } else {
+                            thread::sleep(config.irc.delay.to_std().unwrap());
+                        }
+                        return;
+                    }
+                    Ok(n) => n,
+                },
+            };
+
+            let origin = msg_args.get(1..).unwrap();
+
+            {
+                let news_list_guarded = news_list.lock().unwrap();
+                if origin.len() == 0 {
+                    let len = news_list_guarded.len() - 1;
+                    if n > len {
+                        n = len;
+                    }
+                    for i in 0..n {
+                        if let Err(e) = irc_writer.raw(format!(
+                            "PRIVMSG {} {}\n",
+                            msg_source,
+                            fmt_news(news_list_guarded.get(len - i).unwrap())
+                        )) {
+                            println!("Failed to send an IRC message... ({:?})", e);
+                        } else {
+                            thread::sleep(config.irc.delay.to_std().unwrap());
+                        }
+                    }
+                } else {
+                    let origin = origin.join(" ");
+                    let show_news: Vec<&News> = news_list_guarded
+                        .iter()
+                        .filter(|x| *x.origin == origin)
+                        .collect();
+                    let len = show_news.len() - 1;
+                    if n > len {
+                        n = len;
+                    }
+
+                    for i in 0..n {
+                        if let Err(e) = irc_writer.raw(format!(
+                            "PRIVMSG {} {}\n",
+                            msg_source,
+                            fmt_news(show_news.get(len - i).unwrap())
+                        )) {
+                            println!("Failed to send an IRC message... ({:?})", e);
+                        } else {
+                            thread::sleep(config.irc.delay.to_std().unwrap());
+                        }
+                    }
+                }
+            }
+
+            return;
         }
 
         // All commands below requires OP
