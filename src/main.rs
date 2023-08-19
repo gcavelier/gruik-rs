@@ -486,7 +486,7 @@ fn news_fetch(
             Ok(_) => {
                 if let Err(e) = f.write_all(
                     serde_json::to_string(&*news_list.lock().unwrap())
-                        .unwrap_or(String::new())
+                        .unwrap_or_default()
                         .as_bytes(),
                 ) {
                     println!("Failed to write {feed_file} : {e}");
