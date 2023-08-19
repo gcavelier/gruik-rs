@@ -33,7 +33,7 @@ struct IrcConfig {
 
 impl Default for IrcConfig {
     fn default() -> Self {
-        IrcConfig {
+        Self {
             server: "irc.libera.chat".to_string(),
             nick: "gruik".to_string(),
             channel: "#goaste".to_string(),
@@ -67,7 +67,7 @@ struct FeedsConfig {
 
 impl Default for FeedsConfig {
     fn default() -> Self {
-        FeedsConfig {
+        Self {
             urls: vec![],
             maxnews: 10,
             maxage: Duration::hours(1),
@@ -111,8 +111,8 @@ fn handle_irc_messages(
                 std::process::exit(1);
             }
         };
-        if let Err(e) = irc_writer.raw(format!("PONG :{}\n", ping_arg)) {
-            println!("Couldn't send the 'PONG' command{:?}", e);
+        if let Err(e) = irc_writer.raw(format!("PONG :{ping_arg}\n")) {
+            println!("Couldn't send the 'PONG' command{e:?}");
         }
         return;
     }
@@ -121,11 +121,11 @@ fn handle_irc_messages(
      */
     if msg.code == loirc::Code::RplWelcome {
         if let Err(e) = irc_writer.raw(format!("JOIN {}\n", config.irc.channel)) {
-            println!("Couldn't join {} : {:?}", config.irc.channel, e);
+            println!("Couldn't join {} : {e:?}", config.irc.channel);
         }
         for channel in &config.irc.xchannels {
-            if let Err(e) = irc_writer.raw(format!("JOIN {}\n", channel)) {
-                println!("Couldn't join {} : {:?}", channel, e);
+            if let Err(e) = irc_writer.raw(format!("JOIN {channel}\n")) {
+                println!("Couldn't join {channel} : {e:?}");
             }
         }
         return;
@@ -156,7 +156,7 @@ fn handle_irc_messages(
                     &msg_source,
                     format!("{}. {}", i.to_string(), feed)
                 )) {
-                    println!("Failed to send an IRC message... ({:?})", e);
+                    println!("Failed to send an IRC message... ({e:?})");
                 } else {
                     thread::sleep(config.irc.delay.to_std().unwrap());
                 }
@@ -168,7 +168,7 @@ fn handle_irc_messages(
         else if msg_str.starts_with("!xpost") {
             let hash = match msg_args.get(0) {
                 None => "".to_string(),
-                Some(h) => h.replace("#", ""),
+                Some(h) => h.replace('#', ""),
             };
 
             for news in news_list.lock().unwrap().iter() {
@@ -185,7 +185,7 @@ fn handle_irc_messages(
                                 config.irc.channel
                             )
                         )) {
-                            println!("Failed to send an IRC message... ({:?})", e);
+                            println!("Failed to send an IRC message... ({e:?})");
                         } else {
                             thread::sleep(config.irc.delay.to_std().unwrap());
                         }
@@ -202,7 +202,7 @@ fn handle_irc_messages(
                     "PRIVMSG {} {}\n",
                     msg_source, "usage: !latest <number> [origin]"
                 )) {
-                    println!("Failed to send an IRC message... ({:?})", e);
+                    println!("Failed to send an IRC message... ({e:?})");
                 } else {
                     thread::sleep(config.irc.delay.to_std().unwrap());
                 }
@@ -218,7 +218,7 @@ fn handle_irc_messages(
                             "PRIVMSG {} {}\n",
                             msg_source, "!latest : conversion error"
                         )) {
-                            println!("Failed to send an IRC message... ({:?})", e);
+                            println!("Failed to send an IRC message... ({e:?})");
                         } else {
                             thread::sleep(config.irc.delay.to_std().unwrap());
                         }
@@ -247,7 +247,7 @@ fn handle_irc_messages(
                             msg_source,
                             fmt_news(news_list_guarded.get(len - i).unwrap())
                         )) {
-                            println!("Failed to send an IRC message... ({:?})", e);
+                            println!("Failed to send an IRC message... ({e:?})");
                         } else {
                             thread::sleep(config.irc.delay.to_std().unwrap());
                         }
@@ -273,7 +273,7 @@ fn handle_irc_messages(
                             msg_source,
                             fmt_news(show_news.get(len - i).unwrap())
                         )) {
-                            println!("Failed to send an IRC message... ({:?})", e);
+                            println!("Failed to send an IRC message... ({e:?})");
                         } else {
                             thread::sleep(config.irc.delay.to_std().unwrap());
                         }
@@ -310,8 +310,6 @@ fn handle_irc_messages(
         else if msg_str.starts_with("!rmfeed") {
             println!("NOT IMPLEMENTED: !rmfeed");
         }
-
-        return;
 
         // We discard all other messages
     }
@@ -392,7 +390,7 @@ fn news_fetch(
     {
         Ok(r) => r,
         Err(e) => {
-            println!("Can't open {} : {}", feed_file, e);
+            println!("Can't open {feed_file} : {e}");
             std::process::exit(1);
         }
     };
@@ -430,11 +428,11 @@ fn news_fetch(
                                 links.push(link.href);
                             }
                             let news = News {
-                                origin: origin,
-                                date: date,
-                                title: title,
+                                origin,
+                                date,
+                                title,
                                 hash: mk_hash(&links),
-                                links: links,
+                                links,
                             };
                             // Check if item was already posted
                             if news_exists(&news, &news_list) {
@@ -457,7 +455,7 @@ fn news_fetch(
                                 &config.irc.channel,
                                 fmt_news(&news)
                             )) {
-                                println!("Failed to send an IRC message... ({:?})", e);
+                                println!("Failed to send an IRC message... ({e:?})");
                             }
                             thread::sleep(config.irc.delay.to_std().unwrap());
 
@@ -490,11 +488,11 @@ fn news_fetch(
                         .unwrap_or("".to_string())
                         .as_bytes(),
                 ) {
-                    println!("Failed to write {} : {}", feed_file, e);
+                    println!("Failed to write {feed_file} : {e}");
                 }
             }
             Err(e) => {
-                println!("Failed to truncate {} : {}", feed_file, e);
+                println!("Failed to truncate {feed_file} : {e}");
             }
         }
 
@@ -504,10 +502,7 @@ fn news_fetch(
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    let config_filename = match args.get(1) {
-        Some(s) => s,
-        None => "config.yaml",
-    };
+    let config_filename = args.get(1).map_or("config.yml", |s| s);
 
     let yaml = match fs::read_to_string(config_filename) {
         Ok(r) => r,
@@ -543,7 +538,7 @@ fn main() {
 
     // register
     if let Err(e) = irc_writer.raw(format!("NICK {}\n", &gruik_config.irc.nick)) {
-        println!("Can't send the 'NICK' command : {:?}\nexiting.", e);
+        println!("Can't send the 'NICK' command : {e:?}\nexiting.");
         std::process::exit(1);
     }
 
@@ -551,7 +546,7 @@ fn main() {
         "USER {} 0 * :{}\n",
         &gruik_config.irc.nick, &gruik_config.irc.nick
     )) {
-        println!("Can't send the 'USER' command : {:?}\nexiting.", e);
+        println!("Can't send the 'USER' command : {e:?}\nexiting.");
         std::process::exit(1);
     }
 
