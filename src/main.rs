@@ -209,7 +209,10 @@ fn handle_irc_messages(
          * !die
          */
         if msg_str.starts_with("!die") {
-            println!("NOT IMPLEMENTED: !die");
+            irc_writer
+                .disconnect()
+                .expect("Disconnect should not fail!");
+            std::process::exit(0);
         }
         /*
          * !addfeed
