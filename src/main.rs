@@ -444,7 +444,7 @@ fn news_fetch(
                                 println!("news too old {}", news.date);
                                 continue;
                             }
-                            i = i + 1;
+                            i += 1;
                             if i > config.feeds.maxnews {
                                 println!("too many lines to post");
                                 break;
