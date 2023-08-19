@@ -95,7 +95,7 @@ struct News {
 }
 
 fn handle_irc_messages(
-    gruik_config: &GruikConfig,
+    config: &GruikConfig,
     irc_writer: &loirc::Writer,
     msg: Message,
     news_list: &Arc<Mutex<VecDeque<News>>>,
@@ -120,10 +120,10 @@ fn handle_irc_messages(
      * RPL_WELCOME
      */
     if msg.code == loirc::Code::RplWelcome {
-        if let Err(e) = irc_writer.raw(format!("JOIN {}\n", gruik_config.irc.channel)) {
-            println!("Couldn't join {} : {:?}", gruik_config.irc.channel, e);
+        if let Err(e) = irc_writer.raw(format!("JOIN {}\n", config.irc.channel)) {
+            println!("Couldn't join {} : {:?}", config.irc.channel, e);
         }
-        for channel in &gruik_config.irc.xchannels {
+        for channel in &config.irc.xchannels {
             if let Err(e) = irc_writer.raw(format!("JOIN {}\n", channel)) {
                 println!("Couldn't join {} : {:?}", channel, e);
             }
@@ -165,7 +165,7 @@ fn handle_irc_messages(
             },
             None => "".to_string(),
         };
-        if !gruik_config.irc.ops.contains(&msg_source) {
+        if !config.irc.ops.contains(&msg_source) {
             return;
         }
 
