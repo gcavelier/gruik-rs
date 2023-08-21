@@ -104,13 +104,13 @@ fn handle_irc_messages(
      * PING
      */
     if msg.code == loirc::Code::Ping {
-        let ping_arg = match msg.args.get(0) {
-            Some(r) => r,
-            None => {
+        let ping_arg = msg.args.get(0).map_or_else(
+            || {
                 println!("Can't get ping argument! exiting.");
                 std::process::exit(1);
-            }
-        };
+            },
+            |s| s,
+        );
         if let Err(e) = irc_writer.raw(format!("PONG :{ping_arg}\n")) {
             println!("Couldn't send the 'PONG' command{e:?}");
         }
@@ -135,13 +135,13 @@ fn handle_irc_messages(
      */
     if msg.code == loirc::Code::Privmsg {
         let empty_str = String::new();
-        let msg_source: String = match msg.prefix {
-            Some(p) => match p {
+        let msg_source = msg.prefix.map_or_else(
+            || String::new(),
+            |s| match s {
                 User(u) => u.nickname,
                 Server(s) => s,
             },
-            None => String::new(),
-        };
+        );
         let msg_str = msg.args.get(1).unwrap_or(&empty_str);
         let msg_args: Vec<&str> = msg_str.split(" ").collect();
         let (_, msg_args) = msg_args.split_at(1);
@@ -166,11 +166,9 @@ fn handle_irc_messages(
          * !xpost
          */
         else if msg_str.starts_with("!xpost") {
-            let hash = match msg_args.get(0) {
-                None => String::new(),
-                Some(h) => h.replace('#', ""),
-            };
-
+            let hash = msg_args
+                .first()
+                .map_or_else(String::new, |s| s.replace('#', ""));
             for news in news_list.lock().unwrap().iter() {
                 println!("{}", news.hash);
                 if news.hash == hash {
@@ -410,14 +408,11 @@ fn news_fetch(
                         let feed = feed.unwrap();
                         let mut i = 0;
                         for item in feed.entries {
-                            let origin = match feed.title {
-                                Some(ref r) => r.content.clone(),
-                                None => "Unknown".to_string(),
-                            };
-                            let date = match item.published {
-                                Some(r) => r,
-                                None => Utc::now(),
-                            };
+                            let origin = feed
+                                .title
+                                .as_ref()
+                                .map_or_else(|| "Unknown".to_string(), |s| s.content.clone());
+                            let date = item.published.map_or_else(Utc::now, |s| s);
                             let title = match item.title {
                                 Some(r) => r.content,
                                 None => "Unknown".to_string(),
