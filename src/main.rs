@@ -366,7 +366,6 @@ fn fmt_news(news: &News) -> String {
         news.hash,
         "\x0f"
     )
-    .to_string()
 }
 
 /*
@@ -412,7 +411,7 @@ fn news_fetch(
                         let mut i = 0;
                         for item in feed.entries {
                             let origin = match feed.title {
-                                Some(ref r) => r.content.to_owned(),
+                                Some(ref r) => r.content.clone(),
                                 None => "Unknown".to_string(),
                             };
                             let date = match item.published {
