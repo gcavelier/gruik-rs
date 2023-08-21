@@ -327,7 +327,7 @@ fn handle_irc_events(
         }
         match event {
             loirc::Event::Message(msg) => {
-                handle_irc_messages(gruik_config, irc_writer, msg, &news_list);
+                handle_irc_messages(gruik_config, irc_writer, msg, news_list);
             }
             _ => {
                 println!("Don't know what to do with the following event :");
@@ -402,7 +402,7 @@ fn news_fetch(
     loop {
         for feed_url in &gruik_config.feeds.urls {
             println!("Fetching {feed_url}");
-            let response = ureq::get(&feed_url).call();
+            let response = ureq::get(feed_url).call();
             if response.is_ok() {
                 let body = response.unwrap().into_string();
                 if body.is_ok() {
@@ -435,7 +435,7 @@ fn news_fetch(
                                 links,
                             };
                             // Check if item was already posted
-                            if news_exists(&news, &news_list) {
+                            if news_exists(&news, news_list) {
                                 println!("already posted {} ({})", news.title, news.hash);
                                 continue;
                             }
