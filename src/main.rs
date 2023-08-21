@@ -95,7 +95,7 @@ struct News {
 }
 
 fn handle_irc_messages(
-    config: &GruikConfig,
+    gruik_config: &GruikConfig,
     irc_writer: &loirc::Writer,
     msg: Message,
     news_list: &Arc<Mutex<VecDeque<News>>>,
@@ -120,10 +120,10 @@ fn handle_irc_messages(
      * RPL_WELCOME
      */
     if msg.code == loirc::Code::RplWelcome {
-        if let Err(e) = irc_writer.raw(format!("JOIN {}\n", config.irc.channel)) {
-            println!("Couldn't join {} : {e:?}", config.irc.channel);
+        if let Err(e) = irc_writer.raw(format!("JOIN {}\n", gruik_config.irc.channel)) {
+            println!("Couldn't join {} : {e:?}", gruik_config.irc.channel);
         }
-        for channel in &config.irc.xchannels {
+        for channel in &gruik_config.irc.xchannels {
             if let Err(e) = irc_writer.raw(format!("JOIN {channel}\n")) {
                 println!("Couldn't join {channel} : {e:?}");
             }
@@ -150,7 +150,7 @@ fn handle_irc_messages(
          * !lsfeeds
          */
         if msg_str.starts_with("!lsfeeds") {
-            for (i, feed) in config.feeds.urls.iter().enumerate() {
+            for (i, feed) in gruik_config.feeds.urls.iter().enumerate() {
                 if let Err(e) = irc_writer.raw(format!(
                     "PRIVMSG {} {}\n",
                     &msg_source,
@@ -158,7 +158,7 @@ fn handle_irc_messages(
                 )) {
                     println!("Failed to send an IRC message... ({e:?})");
                 } else {
-                    thread::sleep(config.irc.delay.to_std().unwrap());
+                    thread::sleep(gruik_config.irc.delay.to_std().unwrap());
                 }
             }
         }
@@ -174,7 +174,7 @@ fn handle_irc_messages(
             for news in news_list.lock().unwrap().iter() {
                 println!("{}", news.hash);
                 if news.hash == hash {
-                    for channel in &config.irc.xchannels {
+                    for channel in &gruik_config.irc.xchannels {
                         if let Err(e) = irc_writer.raw(format!(
                             "PRIVMSG {} {}\n",
                             &channel,
@@ -182,12 +182,12 @@ fn handle_irc_messages(
                                 "{} (from {} on {})",
                                 fmt_news(news),
                                 msg_source,
-                                config.irc.channel
+                                gruik_config.irc.channel
                             )
                         )) {
                             println!("Failed to send an IRC message... ({e:?})");
                         } else {
-                            thread::sleep(config.irc.delay.to_std().unwrap());
+                            thread::sleep(gruik_config.irc.delay.to_std().unwrap());
                         }
                     }
                 }
@@ -204,7 +204,7 @@ fn handle_irc_messages(
                 )) {
                     println!("Failed to send an IRC message... ({e:?})");
                 } else {
-                    thread::sleep(config.irc.delay.to_std().unwrap());
+                    thread::sleep(gruik_config.irc.delay.to_std().unwrap());
                 }
                 return;
             }
@@ -220,7 +220,7 @@ fn handle_irc_messages(
                         )) {
                             println!("Failed to send an IRC message... ({e:?})");
                         } else {
-                            thread::sleep(config.irc.delay.to_std().unwrap());
+                            thread::sleep(gruik_config.irc.delay.to_std().unwrap());
                         }
                         return;
                     }
@@ -249,7 +249,7 @@ fn handle_irc_messages(
                         )) {
                             println!("Failed to send an IRC message... ({e:?})");
                         } else {
-                            thread::sleep(config.irc.delay.to_std().unwrap());
+                            thread::sleep(gruik_config.irc.delay.to_std().unwrap());
                         }
                     }
                 } else {
@@ -275,7 +275,7 @@ fn handle_irc_messages(
                         )) {
                             println!("Failed to send an IRC message... ({e:?})");
                         } else {
-                            thread::sleep(config.irc.delay.to_std().unwrap());
+                            thread::sleep(gruik_config.irc.delay.to_std().unwrap());
                         }
                     }
                 }
@@ -285,7 +285,7 @@ fn handle_irc_messages(
         }
 
         // All commands below requires OP
-        if !config.irc.ops.contains(&msg_source) {
+        if !gruik_config.irc.ops.contains(&msg_source) {
             return;
         }
 
@@ -375,11 +375,11 @@ fn fmt_news(news: &News) -> String {
  * Fetch and post news from RSS feeds
  */
 fn news_fetch(
-    config: &Arc<GruikConfig>,
+    gruik_config: &Arc<GruikConfig>,
     news_list: &Arc<Mutex<VecDeque<News>>>,
     irc_writer: &loirc::Writer,
 ) {
-    let feed_file = config.irc.channel.to_owned() + "-feed.json";
+    let feed_file = gruik_config.irc.channel.to_owned() + "-feed.json";
 
     // load saved news
     let mut f = match fs::OpenOptions::new()
@@ -400,7 +400,7 @@ fn news_fetch(
     *news_list.lock().unwrap() = serde_json::from_str(&buf).unwrap_or(VecDeque::new());
 
     loop {
-        for feed_url in &config.feeds.urls {
+        for feed_url in &gruik_config.feeds.urls {
             println!("Fetching {feed_url}");
             let response = ureq::get(&feed_url).call();
             if response.is_ok() {
@@ -440,30 +440,30 @@ fn news_fetch(
                                 continue;
                             }
                             // don't paste news older than feeds.maxage
-                            if Utc::now() - news.date > config.feeds.maxage {
+                            if Utc::now() - news.date > gruik_config.feeds.maxage {
                                 println!("news too old {}", news.date);
                                 continue;
                             }
                             i += 1;
-                            if i > config.feeds.maxnews {
+                            if i > gruik_config.feeds.maxnews {
                                 println!("too many lines to post");
                                 break;
                             }
 
                             if let Err(e) = irc_writer.raw(format!(
                                 "PRIVMSG {} {}\n",
-                                &config.irc.channel,
+                                &gruik_config.irc.channel,
                                 fmt_news(&news)
                             )) {
                                 println!("Failed to send an IRC message... ({e:?})");
                             }
-                            thread::sleep(config.irc.delay.to_std().unwrap());
+                            thread::sleep(gruik_config.irc.delay.to_std().unwrap());
 
                             // Mark item as posted
                             {
                                 let mut news_list_guarded = news_list.lock().unwrap();
 
-                                if news_list_guarded.len() > config.feeds.ringsize {
+                                if news_list_guarded.len() > gruik_config.feeds.ringsize {
                                     news_list_guarded.pop_front();
                                 } else {
                                     news_list_guarded.push_back(news);
@@ -497,7 +497,7 @@ fn news_fetch(
             }
         }
 
-        thread::sleep(config.feeds.frequency.to_std().unwrap());
+        thread::sleep(gruik_config.feeds.frequency.to_std().unwrap());
     }
 }
 fn main() {
