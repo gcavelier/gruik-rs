@@ -19,4 +19,5 @@ sha2 = { version = "0.10.7" }
 ureq = { version = "2.7.1" }
 
 [profile.release]
-strip=true
+strip=true	# Automatically strip symbols from the binary
+lto=true	# Enable link time optimization
