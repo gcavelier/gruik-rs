@@ -186,8 +186,8 @@ fn handle_irc_messages(
      * RPL_WELCOME
      */
     if msg.code == loirc::Code::RplWelcome {
-        if let Err(e) = irc_writer.raw(format!("JOIN {}\n", irc_channel)) {
-            println!("Couldn't join {} : {e:?}", irc_channel);
+        if let Err(e) = irc_writer.raw(format!("JOIN {irc_channel}\n")) {
+            println!("Couldn't join {irc_channel} : {e:?}");
         }
         for channel in xchannels {
             if let Err(e) = irc_writer.raw(format!("JOIN {channel}\n")) {
@@ -602,12 +602,12 @@ fn main() {
 
     // register
     let irc_nick = gruik_config.irc_nick();
-    if let Err(e) = irc_writer.raw(format!("NICK {}\n", irc_nick)) {
+    if let Err(e) = irc_writer.raw(format!("NICK {irc_nick}\n")) {
         println!("Can't send the 'NICK' command : {e:?}\nexiting.");
         std::process::exit(1);
     }
 
-    if let Err(e) = irc_writer.raw(format!("USER {} 0 * :{}\n", irc_nick, irc_nick)) {
+    if let Err(e) = irc_writer.raw(format!("USER {irc_nick} 0 * :{irc_nick}\n")) {
         println!("Can't send the 'USER' command : {e:?}\nexiting.");
         std::process::exit(1);
     }
