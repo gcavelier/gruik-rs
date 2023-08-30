@@ -104,7 +104,7 @@ struct GruikConfig {
 
 impl GruikConfig {
     fn new(config: GruikConfigYaml) -> Self {
-        GruikConfig {
+        Self {
             inner: Arc::new(Mutex::new(config)),
         }
     }
