@@ -217,11 +217,7 @@ fn handle_irc_messages(
          */
         if msg_str.starts_with("!lsfeeds") {
             for (i, feed) in gruik_config.feeds_urls().iter().enumerate() {
-                if let Err(e) = irc_writer.raw(format!(
-                    "PRIVMSG {} {}\n",
-                    &msg_source,
-                    format!("{}. {}", i.to_string(), feed)
-                )) {
+                if let Err(e) = irc_writer.raw(format!("PRIVMSG {} {}. {feed}\n", &msg_source, i)) {
                     println!("Failed to send an IRC message... ({e:?})");
                 } else {
                     thread::sleep(gruik_config.irc_delay());
@@ -240,14 +236,9 @@ fn handle_irc_messages(
                 if news.hash == hash {
                     for channel in &xchannels {
                         if let Err(e) = irc_writer.raw(format!(
-                            "PRIVMSG {} {}\n",
+                            "PRIVMSG {} {} (from {msg_source} on {irc_channel})\n",
                             &channel,
-                            format!(
-                                "{} (from {} on {})",
-                                fmt_news(news),
-                                msg_source,
-                                irc_channel
-                            )
+                            fmt_news(news),
                         )) {
                             println!("Failed to send an IRC message... ({e:?})");
                         } else {
