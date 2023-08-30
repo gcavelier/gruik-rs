@@ -1,19 +1,12 @@
-use base16ct;
 use chrono::{DateTime, Duration, Utc};
 use duration_str::deserialize_duration_chrono;
-use encoding;
-use feed_rs;
-use loirc;
 use loirc::Message;
 use loirc::Prefix::{Server, User};
 use serde::{Deserialize, Serialize};
-use serde_json;
-use serde_yaml;
 use sha2::{Digest, Sha256};
 use std::collections::VecDeque;
 use std::io::{Read, Write};
 use std::{collections::HashMap, env, fs, sync::Arc, sync::Mutex, thread};
-use ureq;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields, default)]
