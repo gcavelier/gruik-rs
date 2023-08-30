@@ -79,7 +79,7 @@ impl Default for FeedsConfig {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct GruikConfig {
+struct GruikConfigYaml {
     irc: IrcConfig,
     feeds: FeedsConfig,
 }
@@ -94,12 +94,78 @@ struct News {
     hash: String,
 }
 
+// The following structure allows sharing the config between multiple threads (or coroutines)
+// It "masks" the internal structure (and the mutex) and you should use the implementations to
+// get/set values
+#[derive(Clone)]
+struct GruikConfig {
+    inner: Arc<Mutex<GruikConfigYaml>>,
+}
+
+impl GruikConfig {
+    fn new(config: GruikConfigYaml) -> Self {
+        GruikConfig {
+            inner: Arc::new(Mutex::new(config)),
+        }
+    }
+    fn irc_server(&self) -> String {
+        self.inner.lock().unwrap().irc.server.clone()
+    }
+    fn irc_port(&self) -> u16 {
+        self.inner.lock().unwrap().irc.port.clone()
+    }
+    fn irc_nick(&self) -> String {
+        self.inner.lock().unwrap().irc.nick.clone()
+    }
+    fn irc_channel(&self) -> String {
+        self.inner.lock().unwrap().irc.channel.clone()
+    }
+    fn xchannels(&self) -> Vec<String> {
+        let mut vec = Vec::new();
+        for channel in &self.inner.lock().unwrap().irc.xchannels {
+            vec.push(channel.clone());
+        }
+        vec
+    }
+    fn feeds_urls(&self) -> Vec<String> {
+        let mut vec = Vec::new();
+        for channel in &self.inner.lock().unwrap().feeds.urls {
+            vec.push(channel.clone());
+        }
+        vec
+    }
+    fn irc_delay(&self) -> std::time::Duration {
+        self.inner.lock().unwrap().irc.delay.to_std().unwrap()
+    }
+    fn is_ops(&self, user: &String) -> bool {
+        self.inner.lock().unwrap().irc.ops.contains(user)
+    }
+    fn debug(&self) -> bool {
+        self.inner.lock().unwrap().irc.debug
+    }
+    fn feeds_maxage(&self) -> Duration {
+        self.inner.lock().unwrap().feeds.maxage
+    }
+    fn feeds_frequency(&self) -> std::time::Duration {
+        self.inner.lock().unwrap().feeds.frequency.to_std().unwrap()
+    }
+    fn feeds_maxnews(&self) -> u16 {
+        self.inner.lock().unwrap().feeds.maxnews
+    }
+    fn feeds_ringsize(&self) -> usize {
+        self.inner.lock().unwrap().feeds.ringsize
+    }
+}
+
 fn handle_irc_messages(
     gruik_config: &GruikConfig,
     irc_writer: &loirc::Writer,
     msg: Message,
     news_list: &Arc<Mutex<VecDeque<News>>>,
 ) {
+    let irc_channel = gruik_config.irc_channel();
+    let xchannels = gruik_config.xchannels();
+
     /*
      * PING
      */
@@ -120,10 +186,10 @@ fn handle_irc_messages(
      * RPL_WELCOME
      */
     if msg.code == loirc::Code::RplWelcome {
-        if let Err(e) = irc_writer.raw(format!("JOIN {}\n", gruik_config.irc.channel)) {
-            println!("Couldn't join {} : {e:?}", gruik_config.irc.channel);
+        if let Err(e) = irc_writer.raw(format!("JOIN {}\n", irc_channel)) {
+            println!("Couldn't join {} : {e:?}", irc_channel);
         }
-        for channel in &gruik_config.irc.xchannels {
+        for channel in xchannels {
             if let Err(e) = irc_writer.raw(format!("JOIN {channel}\n")) {
                 println!("Couldn't join {channel} : {e:?}");
             }
@@ -150,7 +216,7 @@ fn handle_irc_messages(
          * !lsfeeds
          */
         if msg_str.starts_with("!lsfeeds") {
-            for (i, feed) in gruik_config.feeds.urls.iter().enumerate() {
+            for (i, feed) in gruik_config.feeds_urls().iter().enumerate() {
                 if let Err(e) = irc_writer.raw(format!(
                     "PRIVMSG {} {}\n",
                     &msg_source,
@@ -158,7 +224,7 @@ fn handle_irc_messages(
                 )) {
                     println!("Failed to send an IRC message... ({e:?})");
                 } else {
-                    thread::sleep(gruik_config.irc.delay.to_std().unwrap());
+                    thread::sleep(gruik_config.irc_delay());
                 }
             }
         }
@@ -172,7 +238,7 @@ fn handle_irc_messages(
             for news in news_list.lock().unwrap().iter() {
                 println!("{}", news.hash);
                 if news.hash == hash {
-                    for channel in &gruik_config.irc.xchannels {
+                    for channel in &xchannels {
                         if let Err(e) = irc_writer.raw(format!(
                             "PRIVMSG {} {}\n",
                             &channel,
@@ -180,12 +246,12 @@ fn handle_irc_messages(
                                 "{} (from {} on {})",
                                 fmt_news(news),
                                 msg_source,
-                                gruik_config.irc.channel
+                                irc_channel
                             )
                         )) {
                             println!("Failed to send an IRC message... ({e:?})");
                         } else {
-                            thread::sleep(gruik_config.irc.delay.to_std().unwrap());
+                            thread::sleep(gruik_config.irc_delay());
                         }
                     }
                 }
@@ -202,7 +268,7 @@ fn handle_irc_messages(
                 )) {
                     println!("Failed to send an IRC message... ({e:?})");
                 } else {
-                    thread::sleep(gruik_config.irc.delay.to_std().unwrap());
+                    thread::sleep(gruik_config.irc_delay());
                 }
                 return;
             }
@@ -218,7 +284,7 @@ fn handle_irc_messages(
                         )) {
                             println!("Failed to send an IRC message... ({e:?})");
                         } else {
-                            thread::sleep(gruik_config.irc.delay.to_std().unwrap());
+                            thread::sleep(gruik_config.irc_delay());
                         }
                         return;
                     }
@@ -247,7 +313,7 @@ fn handle_irc_messages(
                         )) {
                             println!("Failed to send an IRC message... ({e:?})");
                         } else {
-                            thread::sleep(gruik_config.irc.delay.to_std().unwrap());
+                            thread::sleep(gruik_config.irc_delay());
                         }
                     }
                 } else {
@@ -273,7 +339,7 @@ fn handle_irc_messages(
                         )) {
                             println!("Failed to send an IRC message... ({e:?})");
                         } else {
-                            thread::sleep(gruik_config.irc.delay.to_std().unwrap());
+                            thread::sleep(gruik_config.irc_delay());
                         }
                     }
                 }
@@ -283,7 +349,7 @@ fn handle_irc_messages(
         }
 
         // All commands below requires OP
-        if !gruik_config.irc.ops.contains(&msg_source) {
+        if !gruik_config.is_ops(&msg_source) {
             return;
         }
 
@@ -320,7 +386,7 @@ fn handle_irc_events(
     news_list: &Arc<Mutex<VecDeque<News>>>,
 ) {
     for event in irc_reader.iter() {
-        if gruik_config.irc.debug {
+        if gruik_config.debug() {
             dbg!(&event);
         }
         match event {
@@ -372,11 +438,11 @@ fn fmt_news(news: &News) -> String {
  * Fetch and post news from RSS feeds
  */
 fn news_fetch(
-    gruik_config: &Arc<GruikConfig>,
+    gruik_config: &GruikConfig,
     news_list: &Arc<Mutex<VecDeque<News>>>,
     irc_writer: &loirc::Writer,
 ) {
-    let feed_file = gruik_config.irc.channel.to_owned() + "-feed.json";
+    let feed_file = gruik_config.irc_channel().to_owned() + "-feed.json";
 
     // load saved news
     let mut f = match fs::OpenOptions::new()
@@ -397,9 +463,9 @@ fn news_fetch(
     *news_list.lock().unwrap() = serde_json::from_str(&buf).unwrap_or(VecDeque::new());
 
     loop {
-        for feed_url in &gruik_config.feeds.urls {
+        for feed_url in gruik_config.feeds_urls() {
             println!("Fetching {feed_url}");
-            let response = ureq::get(feed_url).call();
+            let response = ureq::get(feed_url.as_str()).call();
             if response.is_ok() {
                 let body = response.unwrap().into_string();
                 if body.is_ok() {
@@ -434,30 +500,30 @@ fn news_fetch(
                                 continue;
                             }
                             // don't paste news older than feeds.maxage
-                            if Utc::now() - news.date > gruik_config.feeds.maxage {
+                            if Utc::now() - news.date > gruik_config.feeds_maxage() {
                                 println!("news too old {}", news.date);
                                 continue;
                             }
                             i += 1;
-                            if i > gruik_config.feeds.maxnews {
+                            if i > gruik_config.feeds_maxnews() {
                                 println!("too many lines to post");
                                 break;
                             }
 
                             if let Err(e) = irc_writer.raw(format!(
                                 "PRIVMSG {} {}\n",
-                                &gruik_config.irc.channel,
+                                &gruik_config.irc_channel(),
                                 fmt_news(&news)
                             )) {
                                 println!("Failed to send an IRC message... ({e:?})");
                             }
-                            thread::sleep(gruik_config.irc.delay.to_std().unwrap());
+                            thread::sleep(gruik_config.irc_delay());
 
                             // Mark item as posted
                             {
                                 let mut news_list_guarded = news_list.lock().unwrap();
 
-                                if news_list_guarded.len() > gruik_config.feeds.ringsize {
+                                if news_list_guarded.len() > gruik_config.feeds_ringsize() {
                                     news_list_guarded.pop_front();
                                 } else {
                                     news_list_guarded.push_back(news);
@@ -491,7 +557,7 @@ fn news_fetch(
             }
         }
 
-        thread::sleep(gruik_config.feeds.frequency.to_std().unwrap());
+        thread::sleep(gruik_config.feeds_frequency());
     }
 }
 fn main() {
@@ -507,16 +573,19 @@ fn main() {
         }
     };
 
-    let gruik_config: Arc<GruikConfig> = match serde_yaml::from_str(&yaml) {
-        Ok(r) => Arc::new(r),
+    let gruik_config_yaml: GruikConfigYaml = match serde_yaml::from_str(&yaml) {
+        Ok(r) => r,
         Err(e) => {
             println!("Can't parse '{config_filename}' : {e}\nexiting.");
             std::process::exit(1);
         }
     };
 
+    // We are now creating a GruikConfig structure so that it can be shared later
+    let gruik_config = GruikConfig::new(gruik_config_yaml);
+
     let (irc_writer, irc_reader) = match loirc::connect(
-        format!("{}:{}", gruik_config.irc.server, gruik_config.irc.port),
+        format!("{}:{}", gruik_config.irc_server(), gruik_config.irc_port()),
         loirc::ReconnectionSettings::Reconnect {
             max_attempts: 10,
             delay_between_attempts: std::time::Duration::from_secs(2),
@@ -532,15 +601,13 @@ fn main() {
     };
 
     // register
-    if let Err(e) = irc_writer.raw(format!("NICK {}\n", &gruik_config.irc.nick)) {
+    let irc_nick = gruik_config.irc_nick();
+    if let Err(e) = irc_writer.raw(format!("NICK {}\n", irc_nick)) {
         println!("Can't send the 'NICK' command : {e:?}\nexiting.");
         std::process::exit(1);
     }
 
-    if let Err(e) = irc_writer.raw(format!(
-        "USER {} 0 * :{}\n",
-        &gruik_config.irc.nick, &gruik_config.irc.nick
-    )) {
+    if let Err(e) = irc_writer.raw(format!("USER {} 0 * :{}\n", irc_nick, irc_nick)) {
         println!("Can't send the 'USER' command : {e:?}\nexiting.");
         std::process::exit(1);
     }
