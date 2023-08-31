@@ -10,7 +10,7 @@ To be complete, the following features are needed :
 - [ ] Rewrite the configuration file when a feed in added or removed
 - [X] Connect to an IRC server
 - [X] Join configured xchannels
-- [ ] Handle private messages
+- [X] Handle private messages
 - [X] Load news list from a JSON file
 - [X] Write news list to a JSON file
 - [X] Fetch and parse RSS feeds

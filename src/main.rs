@@ -350,7 +350,18 @@ fn handle_irc_messages(
          * !addfeed
          */
         else if msg_str.starts_with("!addfeed") {
-            println!("NOT IMPLEMENTED: !addfeed");
+            let url = match msg_args.first() {
+                Some(url) => url.to_string(),
+                None => return,
+            };
+            if gruik_config.inner.lock().unwrap().feeds.urls.contains(&url) {
+                return;
+            }
+            gruik_config.inner.lock().unwrap().feeds.urls.push(url);
+            // TODO : use color in the following message
+            if let Err(e) = irc_writer.raw(format!("PRIVMSG {} feed added\n", msg_source)) {
+                println!("Failed to send an IRC message... ({e:?})");
+            }
         }
         /*
          * !rmfeed
