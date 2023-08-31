@@ -202,7 +202,7 @@ fn handle_irc_messages(
             },
         );
         let msg_str = msg.args.get(1).unwrap_or(&empty_str);
-        let msg_args: Vec<&str> = msg_str.split(" ").collect();
+        let msg_args: Vec<&str> = msg_str.split(' ').collect();
         let (_, msg_args) = msg_args.split_at(1);
 
         /*
@@ -258,7 +258,7 @@ fn handle_irc_messages(
             }
 
             // n == number of news to show
-            let mut n = match msg_args.get(0) {
+            let mut n = match msg_args.first() {
                 None => 0,
                 Some(arg) => match arg.parse() {
                     Err(_) => {
@@ -359,7 +359,7 @@ fn handle_irc_messages(
             }
             gruik_config.inner.lock().unwrap().feeds.urls.push(url);
             // TODO : use color in the following message
-            if let Err(e) = irc_writer.raw(format!("PRIVMSG {} feed added\n", msg_source)) {
+            if let Err(e) = irc_writer.raw(format!("PRIVMSG {msg_source} feed added\n")) {
                 println!("Failed to send an IRC message... ({e:?})");
             }
         }
@@ -372,8 +372,7 @@ fn handle_irc_messages(
                 Ok(r) => r,
                 Err(e) => {
                     if let Err(e) = irc_writer.raw(format!(
-                        "PRIVMSG {} index conversion failed ({e})\n",
-                        msg_source
+                        "PRIVMSG {msg_source} index conversion failed ({e})\n"
                     )) {
                         println!("Failed to send an IRC message... ({e:?})");
                     }
@@ -381,15 +380,14 @@ fn handle_irc_messages(
                 }
             };
             if index > gruik_config.inner.lock().unwrap().feeds.urls.len() {
-                if let Err(e) = irc_writer.raw(format!("PRIVMSG {} bad index number\n", msg_source))
-                {
+                if let Err(e) = irc_writer.raw(format!("PRIVMSG {msg_source} bad index number\n")) {
                     println!("Failed to send an IRC message... ({e:?})",);
                 }
                 return;
             }
             gruik_config.inner.lock().unwrap().feeds.urls.remove(index);
             // TODO : use color in the following message
-            if let Err(e) = irc_writer.raw(format!("PRIVMSG {} feed removed\n", msg_source)) {
+            if let Err(e) = irc_writer.raw(format!("PRIVMSG {msg_source} feed removed\n")) {
                 println!("Failed to send an IRC message... ({e:?})");
             }
         }
@@ -461,7 +459,7 @@ fn news_fetch(
     news_list: &Arc<Mutex<VecDeque<News>>>,
     irc_writer: &loirc::Writer,
 ) {
-    let feed_file = gruik_config.irc_channel().to_owned() + "-feed.json";
+    let feed_file = gruik_config.irc_channel() + "-feed.json";
 
     // load saved news
     let mut f = match fs::OpenOptions::new()
