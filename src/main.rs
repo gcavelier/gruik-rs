@@ -356,7 +356,31 @@ fn handle_irc_messages(
          * !rmfeed
          */
         else if msg_str.starts_with("!rmfeed") {
-            println!("NOT IMPLEMENTED: !rmfeed");
+            // This will delete a feed, based on its index
+            let index: usize = match msg_args.first().unwrap_or(&"").parse() {
+                Ok(r) => r,
+                Err(e) => {
+                    if let Err(e) = irc_writer.raw(format!(
+                        "PRIVMSG {} index conversion failed ({e})\n",
+                        msg_source
+                    )) {
+                        println!("Failed to send an IRC message... ({e:?})");
+                    }
+                    return;
+                }
+            };
+            if index > gruik_config.inner.lock().unwrap().feeds.urls.len() {
+                if let Err(e) = irc_writer.raw(format!("PRIVMSG {} bad index number\n", msg_source))
+                {
+                    println!("Failed to send an IRC message... ({e:?})",);
+                }
+                return;
+            }
+            gruik_config.inner.lock().unwrap().feeds.urls.remove(index);
+            // TODO : use color in the following message
+            if let Err(e) = irc_writer.raw(format!("PRIVMSG {} feed removed\n", msg_source)) {
+                println!("Failed to send an IRC message... ({e:?})");
+            }
         }
 
         // We discard all other messages
