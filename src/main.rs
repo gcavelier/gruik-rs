@@ -245,7 +245,7 @@ fn handle_irc_messages(
          * !latest
          */
         else if msg_str.starts_with("!latest") {
-            if msg_args.len() < 1 {
+            if msg_args.is_empty() {
                 if let Err(e) = irc_writer.raw(format!(
                     "PRIVMSG {} {}\n",
                     msg_source, "usage: !latest <number> [origin]"
@@ -280,7 +280,7 @@ fn handle_irc_messages(
 
             {
                 let news_list_guarded = news_list.lock().unwrap();
-                if origin.len() == 0 {
+                if origin.is_empty() {
                     let len = if news_list_guarded.len() > 1 {
                         news_list_guarded.len() - 1
                     } else {
