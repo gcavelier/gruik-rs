@@ -77,7 +77,7 @@ struct GruikConfigYaml {
     feeds: FeedsConfig,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(deny_unknown_fields)]
 struct News {
     origin: String,
@@ -150,11 +150,136 @@ impl GruikConfig {
     }
 }
 
+#[derive(Clone)]
+struct NewsList {
+    inner: Arc<Mutex<VecDeque<News>>>,
+}
+
+impl NewsList {
+    fn new() -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(VecDeque::new())),
+        }
+    }
+
+    fn contains(&self, news: &News) -> bool {
+        for n in self.inner.lock().unwrap().iter() {
+            if n.hash == news.hash {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn get_all(&self) -> Vec<News> {
+        let mut vec = Vec::new();
+        for news in self.inner.lock().unwrap().iter() {
+            vec.push(news.clone());
+        }
+        vec
+    }
+
+    fn load_file(&self, feed_file: &String) {
+        let mut f = match fs::OpenOptions::new()
+            .write(true)
+            .read(true)
+            .create(true)
+            .open(&feed_file)
+        {
+            Ok(r) => r,
+            Err(e) => {
+                println!("Can't open {feed_file} : {e}");
+                std::process::exit(1);
+            }
+        };
+        let mut buf = String::new();
+        f.read_to_string(&mut buf).unwrap_or(0);
+        *self.inner.lock().unwrap() = serde_json::from_str(&buf).unwrap_or(VecDeque::new());
+    }
+
+    fn save_file(&self, feed_file: &String) {
+        let mut f = match fs::OpenOptions::new()
+            .write(true)
+            .read(true)
+            .create(true)
+            .open(&feed_file)
+        {
+            Ok(r) => r,
+            Err(e) => {
+                println!("Can't open {feed_file} : {e}");
+                std::process::exit(1);
+            }
+        };
+        match f.set_len(0) {
+            Ok(_) => {
+                if let Err(e) = f.write_all(
+                    serde_json::to_string(&*self.inner.lock().unwrap())
+                        .unwrap_or_default()
+                        .as_bytes(),
+                ) {
+                    println!("Failed to write {feed_file} : {e}");
+                }
+            }
+            Err(e) => {
+                println!("Failed to truncate {feed_file} : {e}");
+            }
+        }
+    }
+    fn add(&self, news: News, ringsize: usize) {
+        let mut news_list_guarded = self.inner.lock().unwrap();
+
+        if news_list_guarded.len() > ringsize {
+            news_list_guarded.pop_front();
+        } else {
+            news_list_guarded.push_back(news);
+        }
+    }
+
+    fn get_latest(&self, n: usize, origin: &[&str]) -> Vec<News> {
+        let mut res = Vec::new();
+        let mut n = n;
+        let news_list_guarded = self.inner.lock().unwrap();
+        if origin.is_empty() {
+            let len = if news_list_guarded.len() > 1 {
+                news_list_guarded.len() - 1
+            } else {
+                0
+            };
+            if n > len {
+                n = len;
+            }
+            for i in 0..n {
+                res.push(news_list_guarded.get(len - i).unwrap().clone());
+            }
+            res
+        } else {
+            let origin = origin.join(" ");
+            let show_news: Vec<&News> = news_list_guarded
+                .iter()
+                .filter(|x| *x.origin == origin)
+                .collect();
+            let len = if show_news.len() > 1 {
+                show_news.len() - 1
+            } else {
+                0
+            };
+            if n > len {
+                n = len;
+            }
+
+            for i in 0..n {
+                res.push(news_list_guarded.get(len - i).unwrap().clone());
+            }
+            res
+        }
+    }
+}
+
 fn handle_irc_messages(
     gruik_config: &GruikConfig,
     irc_writer: &loirc::Writer,
     msg: Message,
-    news_list: &Arc<Mutex<VecDeque<News>>>,
+    news_list: &NewsList,
 ) {
     let irc_channel = gruik_config.irc_channel();
     let xchannels = gruik_config.xchannels();
@@ -224,14 +349,14 @@ fn handle_irc_messages(
             let hash = msg_args
                 .first()
                 .map_or_else(String::new, |s| s.replace('#', ""));
-            for news in news_list.lock().unwrap().iter() {
+            for news in news_list.get_all() {
                 println!("{}", news.hash);
                 if news.hash == hash {
                     for channel in &xchannels {
                         if let Err(e) = irc_writer.raw(format!(
                             "PRIVMSG {} {} (from {msg_source} on {irc_channel})\n",
                             &channel,
-                            fmt_news(news),
+                            fmt_news(&news),
                         )) {
                             println!("Failed to send an IRC message... ({e:?})");
                         } else {
@@ -258,7 +383,7 @@ fn handle_irc_messages(
             }
 
             // n == number of news to show
-            let mut n = match msg_args.first() {
+            let n = match msg_args.first() {
                 None => 0,
                 Some(arg) => match arg.parse() {
                     Err(_) => {
@@ -278,54 +403,13 @@ fn handle_irc_messages(
 
             let origin = msg_args.get(1..).unwrap();
 
-            {
-                let news_list_guarded = news_list.lock().unwrap();
-                if origin.is_empty() {
-                    let len = if news_list_guarded.len() > 1 {
-                        news_list_guarded.len() - 1
-                    } else {
-                        0
-                    };
-                    if n > len {
-                        n = len;
-                    }
-                    for i in 0..n {
-                        if let Err(e) = irc_writer.raw(format!(
-                            "PRIVMSG {} {}\n",
-                            msg_source,
-                            fmt_news(news_list_guarded.get(len - i).unwrap())
-                        )) {
-                            println!("Failed to send an IRC message... ({e:?})");
-                        } else {
-                            thread::sleep(gruik_config.irc_delay());
-                        }
-                    }
+            for news in news_list.get_latest(n, origin) {
+                if let Err(e) =
+                    irc_writer.raw(format!("PRIVMSG {} {}\n", msg_source, fmt_news(&news)))
+                {
+                    println!("Failed to send an IRC message... ({e:?})");
                 } else {
-                    let origin = origin.join(" ");
-                    let show_news: Vec<&News> = news_list_guarded
-                        .iter()
-                        .filter(|x| *x.origin == origin)
-                        .collect();
-                    let len = if show_news.len() > 1 {
-                        show_news.len() - 1
-                    } else {
-                        0
-                    };
-                    if n > len {
-                        n = len;
-                    }
-
-                    for i in 0..n {
-                        if let Err(e) = irc_writer.raw(format!(
-                            "PRIVMSG {} {}\n",
-                            msg_source,
-                            fmt_news(show_news.get(len - i).unwrap())
-                        )) {
-                            println!("Failed to send an IRC message... ({e:?})");
-                        } else {
-                            thread::sleep(gruik_config.irc_delay());
-                        }
-                    }
+                    thread::sleep(gruik_config.irc_delay());
                 }
             }
 
@@ -400,7 +484,7 @@ fn handle_irc_events(
     gruik_config: &GruikConfig,
     irc_writer: &loirc::Writer,
     irc_reader: &loirc::Reader,
-    news_list: &Arc<Mutex<VecDeque<News>>>,
+    news_list: &NewsList,
 ) {
     for event in irc_reader.iter() {
         if gruik_config.debug() {
@@ -420,15 +504,6 @@ fn handle_irc_events(
 
 fn mk_hash(links: &Vec<String>) -> String {
     base16ct::lower::encode_string(&Sha256::digest(links.join("")))[..8].to_string()
-}
-
-fn news_exists(news: &News, news_list: &Arc<Mutex<VecDeque<News>>>) -> bool {
-    for n in news_list.lock().unwrap().iter() {
-        if n.hash == news.hash {
-            return true;
-        }
-    }
-    false
 }
 
 fn fmt_news(news: &News) -> String {
@@ -454,30 +529,11 @@ fn fmt_news(news: &News) -> String {
  *
  * Fetch and post news from RSS feeds
  */
-fn news_fetch(
-    gruik_config: &GruikConfig,
-    news_list: &Arc<Mutex<VecDeque<News>>>,
-    irc_writer: &loirc::Writer,
-) {
+fn news_fetch(gruik_config: &GruikConfig, news_list: &NewsList, irc_writer: &loirc::Writer) {
     let feed_file = gruik_config.irc_channel() + "-feed.json";
 
     // load saved news
-    let mut f = match fs::OpenOptions::new()
-        .write(true)
-        .read(true)
-        .create(true)
-        .open(&feed_file)
-    {
-        Ok(r) => r,
-        Err(e) => {
-            println!("Can't open {feed_file} : {e}");
-            std::process::exit(1);
-        }
-    };
-
-    let mut buf = String::new();
-    f.read_to_string(&mut buf).unwrap_or(0);
-    *news_list.lock().unwrap() = serde_json::from_str(&buf).unwrap_or(VecDeque::new());
+    news_list.load_file(&feed_file);
 
     loop {
         for feed_url in gruik_config.feeds_urls() {
@@ -512,7 +568,7 @@ fn news_fetch(
                                 links,
                             };
                             // Check if item was already posted
-                            if news_exists(&news, news_list) {
+                            if news_list.contains(&news) {
                                 println!("already posted {} ({})", news.title, news.hash);
                                 continue;
                             }
@@ -537,15 +593,7 @@ fn news_fetch(
                             thread::sleep(gruik_config.irc_delay());
 
                             // Mark item as posted
-                            {
-                                let mut news_list_guarded = news_list.lock().unwrap();
-
-                                if news_list_guarded.len() > gruik_config.feeds_ringsize() {
-                                    news_list_guarded.pop_front();
-                                } else {
-                                    news_list_guarded.push_back(news);
-                                }
-                            }
+                            news_list.add(news, gruik_config.feeds_ringsize());
                         }
                     } else {
                         println!("Failed to parse feed : {:?}", feed.err());
@@ -559,20 +607,7 @@ fn news_fetch(
         }
 
         // save news list to disk to avoid repost when restarting
-        match f.set_len(0) {
-            Ok(_) => {
-                if let Err(e) = f.write_all(
-                    serde_json::to_string(&*news_list.lock().unwrap())
-                        .unwrap_or_default()
-                        .as_bytes(),
-                ) {
-                    println!("Failed to write {feed_file} : {e}");
-                }
-            }
-            Err(e) => {
-                println!("Failed to truncate {feed_file} : {e}");
-            }
-        }
+        news_list.save_file(&feed_file);
 
         thread::sleep(gruik_config.feeds_frequency());
     }
@@ -630,7 +665,7 @@ fn main() {
     }
 
     let gruik_config_clone = gruik_config.clone();
-    let news_list: Arc<Mutex<VecDeque<News>>> = Arc::new(Mutex::new(VecDeque::new()));
+    let news_list = NewsList::new();
     let news_list_clone = news_list.clone();
     let irc_writer_clone = irc_writer.clone();
     thread::spawn(move || news_fetch(&gruik_config_clone, &news_list_clone, &irc_writer_clone));
