@@ -148,6 +148,20 @@ impl GruikConfig {
     fn feeds_ringsize(&self) -> usize {
         self.inner.lock().unwrap().feeds.ringsize
     }
+    fn addfeed(&self, url: String) {
+        if self.inner.lock().unwrap().feeds.urls.contains(&url) {
+            return;
+        }
+        self.inner.lock().unwrap().feeds.urls.push(url);
+    }
+    fn rmfeed(&self, index: usize) -> Result<(), String> {
+        if index > self.inner.lock().unwrap().feeds.urls.len() {
+            Err("bad index number".to_string())
+        } else {
+            self.inner.lock().unwrap().feeds.urls.remove(index);
+            Ok(())
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -437,10 +451,9 @@ fn handle_irc_messages(
                 Some(url) => url.to_string(),
                 None => return,
             };
-            if gruik_config.inner.lock().unwrap().feeds.urls.contains(&url) {
-                return;
-            }
-            gruik_config.inner.lock().unwrap().feeds.urls.push(url);
+
+            gruik_config.addfeed(url);
+
             // TODO : use color in the following message
             if let Err(e) = irc_writer.raw(format!("PRIVMSG {msg_source} feed added\n")) {
                 println!("Failed to send an IRC message... ({e:?})");
@@ -462,15 +475,14 @@ fn handle_irc_messages(
                     return;
                 }
             };
-            if index > gruik_config.inner.lock().unwrap().feeds.urls.len() {
-                if let Err(e) = irc_writer.raw(format!("PRIVMSG {msg_source} bad index number\n")) {
-                    println!("Failed to send an IRC message... ({e:?})",);
-                }
-                return;
-            }
+            let msg = match gruik_config.rmfeed(index) {
+                Ok(_) => "feed removed".to_string(),
+                Err(e) => e,
+            };
+
             gruik_config.inner.lock().unwrap().feeds.urls.remove(index);
             // TODO : use color in the following message
-            if let Err(e) = irc_writer.raw(format!("PRIVMSG {msg_source} feed removed\n")) {
+            if let Err(e) = irc_writer.raw(format!("PRIVMSG {msg_source} {msg}\n")) {
                 println!("Failed to send an IRC message... ({e:?})");
             }
         }
