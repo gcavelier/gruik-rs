@@ -105,7 +105,7 @@ impl GruikConfig {
         self.inner.lock().unwrap().irc.server.clone()
     }
     fn irc_port(&self) -> u16 {
-        self.inner.lock().unwrap().irc.port.clone()
+        self.inner.lock().unwrap().irc.port
     }
     fn irc_nick(&self) -> String {
         self.inner.lock().unwrap().irc.nick.clone()
@@ -184,7 +184,7 @@ impl NewsList {
             .write(true)
             .read(true)
             .create(true)
-            .open(&feed_file)
+            .open(feed_file)
         {
             Ok(r) => r,
             Err(e) => {
@@ -194,7 +194,7 @@ impl NewsList {
         };
         let mut buf = String::new();
         f.read_to_string(&mut buf).unwrap_or(0);
-        *self.inner.lock().unwrap() = serde_json::from_str(&buf).unwrap_or(VecDeque::new());
+        *self.inner.lock().unwrap() = serde_json::from_str(&buf).unwrap_or_default();
     }
 
     fn save_file(&self, feed_file: &String) {
@@ -202,7 +202,7 @@ impl NewsList {
             .write(true)
             .read(true)
             .create(true)
-            .open(&feed_file)
+            .open(feed_file)
         {
             Ok(r) => r,
             Err(e) => {
@@ -251,7 +251,6 @@ impl NewsList {
             for i in 0..n {
                 res.push(news_list_guarded.get(len - i).unwrap().clone());
             }
-            res
         } else {
             let origin = origin.join(" ");
             let show_news: Vec<&News> = news_list_guarded
@@ -270,8 +269,8 @@ impl NewsList {
             for i in 0..n {
                 res.push(news_list_guarded.get(len - i).unwrap().clone());
             }
-            res
         }
+        res
     }
 }
 
@@ -486,7 +485,7 @@ fn handle_irc_events(
     irc_reader: &loirc::Reader,
     news_list: &NewsList,
 ) {
-    for event in irc_reader.iter() {
+    for event in irc_reader {
         if gruik_config.debug() {
             dbg!(&event);
         }
@@ -516,7 +515,9 @@ fn fmt_news(news: &News) -> String {
         news.title,
         "\x0f",
         "\x0312",
-        news.links.get(0).unwrap(),
+        news.links
+            .first()
+            .expect("At least one link should be present!"),
         "\x0f",
         "\x0315",
         news.hash,
