@@ -246,7 +246,7 @@ impl NewsList {
     }
 
     fn contains(&self, news: &News) -> bool {
-        for n in self.inner.lock().expect("Poisoned lock!").iter() {
+        for n in &*self.inner.lock().expect("Poisoned lock!") {
             if n.hash == news.hash {
                 return true;
             }
@@ -399,13 +399,10 @@ fn handle_irc_messages(
      */
     if msg.code == loirc::Code::Privmsg {
         let empty_str = String::new();
-        let msg_source = msg.prefix.map_or_else(
-            || String::new(),
-            |s| match s {
-                User(u) => u.nickname,
-                Server(s) => s,
-            },
-        );
+        let msg_source = msg.prefix.map_or_else(String::new, |s| match s {
+            User(u) => u.nickname,
+            Server(s) => s,
+        });
         let msg_str = msg.args.get(1).unwrap_or(&empty_str);
         let msg_args: Vec<&str> = msg_str.split(' ').collect();
         let (_, msg_args) = msg_args.split_at(1);
@@ -515,7 +512,7 @@ fn handle_irc_messages(
          */
         else if msg_str.starts_with("!addfeed") {
             let url = match msg_args.first() {
-                Some(url) => url.to_string(),
+                Some(url) => (*url).to_string(),
                 None => return,
             };
 
@@ -576,7 +573,7 @@ fn handle_irc_events(
     }
 }
 
-fn mk_hash(links: &Vec<String>) -> String {
+fn mk_hash(links: &[String]) -> String {
     base16ct::lower::encode_string(&Sha256::digest(links.join("")))[..8].to_string()
 }
 
