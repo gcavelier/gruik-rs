@@ -567,14 +567,11 @@ fn handle_irc_events(
         if gruik_config.debug() {
             dbg!(&event);
         }
-        match event {
-            loirc::Event::Message(msg) => {
-                handle_irc_messages(gruik_config, irc_writer, msg, news_list);
-            }
-            _ => {
-                println!("Don't know what to do with the following event :");
-                dbg!(event);
-            }
+        if let loirc::Event::Message(msg) = event {
+            handle_irc_messages(gruik_config, irc_writer, msg, news_list);
+        } else {
+            println!("Don't know what to do with the following event :");
+            dbg!(event);
         }
     }
 }
