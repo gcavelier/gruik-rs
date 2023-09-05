@@ -254,12 +254,9 @@ impl NewsList {
         false
     }
 
-    fn get_all(&self) -> Vec<News> {
-        let mut vec = Vec::new();
-        for news in self.inner.lock().expect("Poisoned lock!").iter() {
-            vec.push(news.clone());
-        }
-        vec
+    fn get_all(&self) -> VecDeque<News> {
+        // We return a copy of the data in the struct
+        self.inner.lock().expect("Poisoned lock!").clone()
     }
 
     fn load_file(&self, feed_file: &String) {
