@@ -90,15 +90,40 @@ struct News {
 // The following structure allows sharing the config between multiple threads (or coroutines)
 // It "masks" the internal structure (and the mutex) and you should use the implementations to
 // get/set values
-#[derive(Clone)]
 struct GruikConfig {
     inner: Arc<Mutex<GruikConfigYaml>>,
+    filename: String,
+}
+
+impl Clone for GruikConfig {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            filename: self.filename.clone(),
+        }
+    }
 }
 
 impl GruikConfig {
-    fn new(config: GruikConfigYaml) -> Self {
+    fn new(filename: String) -> Self {
+        let yaml = match fs::read_to_string(&filename) {
+            Ok(r) => r,
+            Err(e) => {
+                println!("Can't read '{}' : {e}\nexiting.", &filename);
+                std::process::exit(1);
+            }
+        };
+
+        let gruik_config_yaml: GruikConfigYaml = match serde_yaml::from_str(&yaml) {
+            Ok(r) => r,
+            Err(e) => {
+                println!("Can't parse '{}' : {e}\nexiting.", &filename);
+                std::process::exit(1);
+            }
+        };
         Self {
-            inner: Arc::new(Mutex::new(config)),
+            inner: Arc::new(Mutex::new(gruik_config_yaml)),
+            filename,
         }
     }
     fn irc_server(&self) -> String {
@@ -628,26 +653,10 @@ fn news_fetch(gruik_config: &GruikConfig, news_list: &NewsList, irc_writer: &loi
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    let config_filename = args.get(1).map_or("config.yaml", |s| s);
-
-    let yaml = match fs::read_to_string(config_filename) {
-        Ok(r) => r,
-        Err(e) => {
-            println!("Can't read '{config_filename}' : {e}\nexiting.");
-            std::process::exit(1);
-        }
-    };
-
-    let gruik_config_yaml: GruikConfigYaml = match serde_yaml::from_str(&yaml) {
-        Ok(r) => r,
-        Err(e) => {
-            println!("Can't parse '{config_filename}' : {e}\nexiting.");
-            std::process::exit(1);
-        }
-    };
+    let config_filename = args.get(1).map_or("config.yaml", |s| s).to_string();
 
     // We are now creating a GruikConfig structure so that it can be shared later
-    let gruik_config = GruikConfig::new(gruik_config_yaml);
+    let gruik_config = GruikConfig::new(config_filename);
 
     let (irc_writer, irc_reader) = match loirc::connect(
         format!("{}:{}", gruik_config.irc_server(), gruik_config.irc_port()),
