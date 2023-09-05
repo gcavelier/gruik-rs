@@ -505,7 +505,6 @@ fn handle_irc_messages(
                 Err(e) => e,
             };
 
-            gruik_config.inner.lock().unwrap().feeds.urls.remove(index);
             // TODO : use color in the following message
             if let Err(e) = irc_writer.raw(format!("PRIVMSG {msg_source} {msg}\n")) {
                 println!("Failed to send an IRC message... ({e:?})");
