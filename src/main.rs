@@ -127,63 +127,107 @@ impl GruikConfig {
         }
     }
     fn irc_server(&self) -> String {
-        self.inner.lock().unwrap().irc.server.clone()
+        self.inner
+            .lock()
+            .expect("Poisoned lock!")
+            .irc
+            .server
+            .clone()
     }
     fn irc_port(&self) -> u16 {
-        self.inner.lock().unwrap().irc.port
+        self.inner.lock().expect("Poisoned lock!").irc.port
     }
     fn irc_nick(&self) -> String {
-        self.inner.lock().unwrap().irc.nick.clone()
+        self.inner.lock().expect("Poisoned lock!").irc.nick.clone()
     }
     fn irc_channel(&self) -> String {
-        self.inner.lock().unwrap().irc.channel.clone()
+        self.inner
+            .lock()
+            .expect("Poisoned lock!")
+            .irc
+            .channel
+            .clone()
     }
     fn xchannels(&self) -> Vec<String> {
         let mut vec = Vec::new();
-        for channel in &self.inner.lock().unwrap().irc.xchannels {
+        for channel in &self.inner.lock().expect("Poisoned lock!").irc.xchannels {
             vec.push(channel.clone());
         }
         vec
     }
     fn feeds_urls(&self) -> Vec<String> {
         let mut vec = Vec::new();
-        for channel in &self.inner.lock().unwrap().feeds.urls {
+        for channel in &self.inner.lock().expect("Poisoned lock!").feeds.urls {
             vec.push(channel.clone());
         }
         vec
     }
     fn irc_delay(&self) -> std::time::Duration {
-        self.inner.lock().unwrap().irc.delay.to_std().unwrap()
+        self.inner
+            .lock()
+            .expect("Poisoned lock!")
+            .irc
+            .delay
+            .to_std()
+            .unwrap()
     }
     fn is_ops(&self, user: &String) -> bool {
-        self.inner.lock().unwrap().irc.ops.contains(user)
+        self.inner
+            .lock()
+            .expect("Poisoned lock!")
+            .irc
+            .ops
+            .contains(user)
     }
     fn debug(&self) -> bool {
-        self.inner.lock().unwrap().irc.debug
+        self.inner.lock().expect("Poisoned lock!").irc.debug
     }
     fn feeds_maxage(&self) -> Duration {
-        self.inner.lock().unwrap().feeds.maxage
+        self.inner.lock().expect("Poisoned lock!").feeds.maxage
     }
     fn feeds_frequency(&self) -> std::time::Duration {
-        self.inner.lock().unwrap().feeds.frequency.to_std().unwrap()
+        self.inner
+            .lock()
+            .expect("Poisoned lock!")
+            .feeds
+            .frequency
+            .to_std()
+            .unwrap()
     }
     fn feeds_maxnews(&self) -> u16 {
-        self.inner.lock().unwrap().feeds.maxnews
+        self.inner.lock().expect("Poisoned lock!").feeds.maxnews
     }
     fn feeds_ringsize(&self) -> usize {
-        self.inner.lock().unwrap().feeds.ringsize
+        self.inner.lock().expect("Poisoned lock!").feeds.ringsize
     }
     fn addfeed(&self, url: String) {
-        if self.inner.lock().unwrap().feeds.urls.contains(&url) {
+        if self
+            .inner
+            .lock()
+            .expect("Poisoned lock!")
+            .feeds
+            .urls
+            .contains(&url)
+        {
             return;
         }
-        self.inner.lock().unwrap().feeds.urls.push(url);
+        self.inner
+            .lock()
+            .expect("Poisoned lock!")
+            .feeds
+            .urls
+            .push(url);
     }
     fn rmfeed(&self, index: usize) -> Result<(), String> {
-        if index > self.inner.lock().unwrap().feeds.urls.len() {
+        if index > self.inner.lock().expect("Poisoned lock!").feeds.urls.len() {
             Err("bad index number".to_string())
         } else {
-            self.inner.lock().unwrap().feeds.urls.remove(index);
+            self.inner
+                .lock()
+                .expect("Poisoned lock!")
+                .feeds
+                .urls
+                .remove(index);
             Ok(())
         }
     }
@@ -202,7 +246,7 @@ impl NewsList {
     }
 
     fn contains(&self, news: &News) -> bool {
-        for n in self.inner.lock().unwrap().iter() {
+        for n in self.inner.lock().expect("Poisoned lock!").iter() {
             if n.hash == news.hash {
                 return true;
             }
@@ -212,7 +256,7 @@ impl NewsList {
 
     fn get_all(&self) -> Vec<News> {
         let mut vec = Vec::new();
-        for news in self.inner.lock().unwrap().iter() {
+        for news in self.inner.lock().expect("Poisoned lock!").iter() {
             vec.push(news.clone());
         }
         vec
@@ -233,7 +277,8 @@ impl NewsList {
         };
         let mut buf = String::new();
         f.read_to_string(&mut buf).unwrap_or(0);
-        *self.inner.lock().unwrap() = serde_json::from_str(&buf).unwrap_or_default();
+        *self.inner.lock().expect("Poisoned lock!") =
+            serde_json::from_str(&buf).unwrap_or_default();
     }
 
     fn save_file(&self, feed_file: &String) {
@@ -252,7 +297,7 @@ impl NewsList {
         match f.set_len(0) {
             Ok(_) => {
                 if let Err(e) = f.write_all(
-                    serde_json::to_string(&*self.inner.lock().unwrap())
+                    serde_json::to_string(&*self.inner.lock().expect("Poisoned lock!"))
                         .unwrap_or_default()
                         .as_bytes(),
                 ) {
@@ -265,7 +310,7 @@ impl NewsList {
         }
     }
     fn add(&self, news: News, ringsize: usize) {
-        let mut news_list_guarded = self.inner.lock().unwrap();
+        let mut news_list_guarded = self.inner.lock().expect("Poisoned lock!");
 
         if news_list_guarded.len() > ringsize {
             news_list_guarded.pop_front();
@@ -277,7 +322,7 @@ impl NewsList {
     fn get_latest(&self, n: usize, origin: &[&str]) -> Vec<News> {
         let mut res = Vec::new();
         let mut n = n;
-        let news_list_guarded = self.inner.lock().unwrap();
+        let news_list_guarded = self.inner.lock().expect("Poisoned lock!");
         if origin.is_empty() {
             let len = if news_list_guarded.len() > 1 {
                 news_list_guarded.len() - 1
