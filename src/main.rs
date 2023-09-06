@@ -330,7 +330,12 @@ impl NewsList {
                 n = len;
             }
             for i in 0..n {
-                res.push(news_list_guarded.get(len - i).unwrap().clone());
+                res.push(
+                    news_list_guarded
+                        .get(len - i)
+                        .expect("Missing news in slice ?!?")
+                        .clone(),
+                );
             }
         } else {
             let origin = origin.join(" ");
