@@ -169,7 +169,7 @@ impl GruikConfig {
             .irc
             .delay
             .to_std()
-            .unwrap()
+            .map_or_else(|_| std::time::Duration::new(2, 0), |d| d)
     }
     fn is_ops(&self, user: &String) -> bool {
         self.inner
@@ -192,7 +192,7 @@ impl GruikConfig {
             .feeds
             .frequency
             .to_std()
-            .unwrap()
+            .map_or_else(|_| std::time::Duration::new(10 * 60, 0), |d| d)
     }
     fn feeds_maxnews(&self) -> u16 {
         self.inner.lock().expect("Poisoned lock!").feeds.maxnews
