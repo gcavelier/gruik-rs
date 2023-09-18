@@ -63,7 +63,7 @@ impl Default for FeedsConfig {
             urls: vec![],
             maxnews: 10,
             maxage: DurationString::from_str("1h").expect("Wrong default!"),
-            frequency: DurationString::from_str("30mn").expect("Wrong default!"),
+            frequency: DurationString::from_str("30m").expect("Wrong default!"),
             ringsize: 100,
         }
     }
