@@ -1,11 +1,13 @@
-use chrono::{DateTime, Duration, Utc};
-use duration_str::deserialize_duration_chrono;
+use chrono::{DateTime, Utc};
+use duration_string::DurationString;
 use loirc::Message;
 use loirc::Prefix::{Server, User};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::VecDeque;
 use std::io::{Read, Write};
+use std::str::FromStr;
+use std::time::Duration;
 use std::{collections::HashMap, env, fs, sync::Arc, sync::Mutex, thread};
 
 #[derive(Debug, Deserialize)]
@@ -18,8 +20,7 @@ struct IrcConfig {
     password: Option<String>,
     debug: bool,
     port: u16,
-    #[serde(deserialize_with = "deserialize_duration_chrono")]
-    delay: Duration,
+    delay: DurationString,
     colors: HashMap<String, String>,
     ops: Vec<String>,
 }
@@ -34,7 +35,7 @@ impl Default for IrcConfig {
             password: None,
             debug: false,
             port: 6667,
-            delay: Duration::seconds(2),
+            delay: DurationString::from_str("2s").expect("Wrong default!"),
             colors: HashMap::from([
                 ("origin".to_string(), "pink".to_string()),
                 ("title".to_string(), "bold".to_string()),
@@ -51,10 +52,8 @@ impl Default for IrcConfig {
 struct FeedsConfig {
     urls: Vec<String>,
     maxnews: u16,
-    #[serde(deserialize_with = "deserialize_duration_chrono")]
-    maxage: Duration,
-    #[serde(deserialize_with = "deserialize_duration_chrono")]
-    frequency: Duration,
+    maxage: DurationString,
+    frequency: DurationString,
     ringsize: usize,
 }
 
@@ -63,8 +62,8 @@ impl Default for FeedsConfig {
         Self {
             urls: vec![],
             maxnews: 10,
-            maxage: Duration::hours(1),
-            frequency: Duration::minutes(10),
+            maxage: DurationString::from_str("1h").expect("Wrong default!"),
+            frequency: DurationString::from_str("30mn").expect("Wrong default!"),
             ringsize: 100,
         }
     }
@@ -162,14 +161,14 @@ impl GruikConfig {
         }
         vec
     }
-    fn irc_delay(&self) -> std::time::Duration {
+    fn irc_delay(&self) -> Duration {
         self.inner
             .lock()
             .expect("Poisoned lock!")
             .irc
             .delay
-            .to_std()
-            .map_or_else(|_| std::time::Duration::new(2, 0), |d| d)
+            .try_into()
+            .map_or_else(|_| Duration::new(2, 0), |d| d)
     }
     fn is_ops(&self, user: &String) -> bool {
         self.inner
@@ -182,17 +181,24 @@ impl GruikConfig {
     fn debug(&self) -> bool {
         self.inner.lock().expect("Poisoned lock!").irc.debug
     }
-    fn feeds_maxage(&self) -> Duration {
-        self.inner.lock().expect("Poisoned lock!").feeds.maxage
+    fn feeds_maxage(&self) -> chrono::Duration {
+        let std_duration: Duration = self
+            .inner
+            .lock()
+            .expect("Poisoned lock!")
+            .feeds
+            .maxage
+            .into();
+        chrono::Duration::from_std(std_duration).expect("Wrong conversion!")
     }
-    fn feeds_frequency(&self) -> std::time::Duration {
+    fn feeds_frequency(&self) -> Duration {
         self.inner
             .lock()
             .expect("Poisoned lock!")
             .feeds
             .frequency
-            .to_std()
-            .map_or_else(|_| std::time::Duration::new(10 * 60, 0), |d| d)
+            .try_into()
+            .map_or_else(|_| Duration::new(10 * 60, 0), |d| d)
     }
     fn feeds_maxnews(&self) -> u16 {
         self.inner.lock().expect("Poisoned lock!").feeds.maxnews
