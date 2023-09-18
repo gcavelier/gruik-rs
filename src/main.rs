@@ -10,7 +10,7 @@ use std::str::FromStr;
 use std::time::Duration;
 use std::{collections::HashMap, env, fs, sync::Arc, sync::Mutex, thread};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields, default)]
 struct IrcConfig {
     server: String,
@@ -47,7 +47,7 @@ impl Default for IrcConfig {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields, default)]
 struct FeedsConfig {
     urls: Vec<String>,
@@ -69,7 +69,7 @@ impl Default for FeedsConfig {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct GruikConfigYaml {
     irc: IrcConfig,
@@ -223,18 +223,42 @@ impl GruikConfig {
             .feeds
             .urls
             .push(url);
+        // We rewrite the config file with the new feed
+        match serde_yaml::to_string(&*self.inner.lock().expect("Poisoned lock")) {
+            Ok(s) => {
+                // Serialization is ok, writing the result to a file
+                match fs::write(&self.filename, s) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        println!("addfeed(): Failed to write the new config filename: {e}");
+                    }
+                }
+            }
+            Err(e) => println!("addfeed(): Failed to serialize GruikConfigYaml: {e}"),
+        }
     }
     fn rmfeed(&self, index: usize) -> Result<(), String> {
         if index > self.inner.lock().expect("Poisoned lock!").feeds.urls.len() {
-            Err("bad index number".to_string())
-        } else {
-            self.inner
-                .lock()
-                .expect("Poisoned lock!")
-                .feeds
-                .urls
-                .remove(index);
-            Ok(())
+            return Err("bad index number".to_string());
+        }
+        self.inner
+            .lock()
+            .expect("Poisoned lock!")
+            .feeds
+            .urls
+            .remove(index);
+        // We rewrite the config file
+        match serde_yaml::to_string(&*self.inner.lock().expect("Poisoned lock")) {
+            Ok(s) => {
+                // Serialization is ok, writing the result to a file
+                match fs::write(&self.filename, s) {
+                    Ok(_) => Ok(()),
+                    Err(e) => Err(format!("rmfeed(): failed to write config file: {e}")),
+                }
+            }
+            Err(e) => Err(format!(
+                "rmfeed(): failed to serialize GruikConfigYaml: {e}"
+            )),
         }
     }
 }
