@@ -6,7 +6,7 @@ To be complete, the following features are needed :
 
 - [X] Get an optionnal argument
 - [X] Read a yaml config file
-- [ ] Hot reloading of the configuration when the yaml file is changed
+- [X] Hot reloading of the configuration when the yaml file is changed
 - [X] Rewrite the configuration file when a feed in added or removed
 - [X] Connect to an IRC server
 - [X] Join configured xchannels

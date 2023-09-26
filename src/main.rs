@@ -125,6 +125,24 @@ impl GruikConfig {
             filename,
         }
     }
+    fn reload(&self) {
+        let yaml = match fs::read_to_string(&self.filename) {
+            Ok(r) => r,
+            Err(e) => {
+                println!("Can't read '{}' : {e}\nexiting.", &self.filename);
+                std::process::exit(1);
+            }
+        };
+
+        let gruik_config_yaml: GruikConfigYaml = match serde_yaml::from_str(&yaml) {
+            Ok(r) => r,
+            Err(e) => {
+                println!("Can't parse '{}' : {e}\nexiting.", &self.filename);
+                std::process::exit(1);
+            }
+        };
+        *self.inner.lock().expect("Poisoned lock!") = gruik_config_yaml;
+    }
     fn irc_server(&self) -> String {
         self.inner
             .lock()
@@ -725,6 +743,37 @@ fn news_fetch(gruik_config: &GruikConfig, news_list: &NewsList, irc_writer: &loi
         thread::sleep(gruik_config.feeds_frequency());
     }
 }
+
+fn config_filename_notify(gruik_config: &GruikConfig) {
+    use notify::{
+        event::ModifyKind, Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
+    };
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    let mut watcher =
+        RecommendedWatcher::new(tx, Config::default()).expect("Couldn't set FS event watcher");
+    watcher
+        .watch(
+            std::path::Path::new(&gruik_config.filename),
+            RecursiveMode::NonRecursive,
+        )
+        .expect("Couldn't set FS event watch on config_filename");
+
+    for res in rx {
+        match res {
+            Ok(event) => match event.kind {
+                EventKind::Modify(modify_kind) => match modify_kind {
+                    ModifyKind::Data(_) => {
+                        gruik_config.reload();
+                    }
+                    _ => {}
+                },
+                _ => {}
+            },
+            Err(error) => println!("Error: {error:?}"),
+        }
+    }
+}
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -762,10 +811,13 @@ fn main() {
     }
 
     let gruik_config_clone = gruik_config.clone();
+    let gruik_config_clone_again = gruik_config.clone();
     let news_list = NewsList::new();
     let news_list_clone = news_list.clone();
     let irc_writer_clone = irc_writer.clone();
     thread::spawn(move || news_fetch(&gruik_config_clone, &news_list_clone, &irc_writer_clone));
+
+    thread::spawn(move || config_filename_notify(&gruik_config_clone_again));
 
     // *Warning*, this is a *blocking* function!
     handle_irc_events(&gruik_config, &irc_writer, &irc_reader, &news_list);
