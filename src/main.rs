@@ -1,9 +1,7 @@
 use chrono::{DateTime, Utc};
 use duration_string::DurationString;
 use loirc::Message;
-use loirc::Prefix::{Server, User};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::collections::VecDeque;
 use std::io::{Read, Write};
 use std::str::FromStr;
@@ -420,6 +418,8 @@ fn handle_irc_messages(
     msg: Message,
     news_list: &NewsList,
 ) {
+    use loirc::Prefix::{Server, User};
+
     let irc_channel = gruik_config.irc_channel();
     let xchannels = gruik_config.xchannels();
 
@@ -633,6 +633,7 @@ fn handle_irc_events(
 }
 
 fn mk_hash(links: &[String]) -> String {
+    use sha2::{Digest, Sha256};
     base16ct::lower::encode_string(&Sha256::digest(links.join("")))[..8].to_string()
 }
 
