@@ -762,15 +762,11 @@ fn config_filename_notify(gruik_config: &GruikConfig) {
 
     for res in rx {
         match res {
-            Ok(event) => match event.kind {
-                EventKind::Modify(modify_kind) => match modify_kind {
-                    ModifyKind::Data(_) => {
-                        gruik_config.reload();
-                    }
-                    _ => {}
-                },
-                _ => {}
-            },
+            Ok(event) => {
+                if let EventKind::Modify(ModifyKind::Data(_)) = event.kind {
+                    gruik_config.reload();
+                }
+            }
             Err(error) => println!("Error: {error:?}"),
         }
     }
