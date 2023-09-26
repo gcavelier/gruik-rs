@@ -126,6 +126,7 @@ impl GruikConfig {
         }
     }
     fn reload(&self) {
+        // TODO : Code is duplicated from the new() function above
         let yaml = match fs::read_to_string(&self.filename) {
             Ok(r) => r,
             Err(e) => {
