@@ -409,71 +409,78 @@ fn news_fetch(gruik_config: &GruikConfig, news_list: &NewsList, irc_writer: &loi
     loop {
         for feed_url in gruik_config.feeds_urls() {
             println!("Fetching {feed_url}");
-            let response = ureq::get(feed_url.as_str()).call();
-            if response.is_ok() {
-                let body = response.unwrap().into_string();
-                if body.is_ok() {
-                    let feed = feed_rs::parser::parse(body.unwrap().as_bytes());
-                    if feed.is_ok() {
-                        let feed = feed.unwrap();
-                        let mut i = 0;
-                        for item in feed.entries {
-                            let origin = feed
-                                .title
-                                .as_ref()
-                                .map_or_else(|| "Unknown".to_string(), |s| s.content.clone());
-                            let date = item.published.map_or_else(Utc::now, |s| s);
-                            let title = match item.title {
-                                Some(r) => r.content,
-                                None => "Unknown".to_string(),
-                            };
-                            let mut links = vec![];
-                            for link in item.links {
-                                links.push(link.href);
-                            }
-                            let news = News {
-                                origin,
-                                date,
-                                title,
-                                hash: mk_hash(&links),
-                                links,
-                            };
-                            // Check if item was already posted
-                            if news_list.contains(&news) {
-                                println!("already posted {} ({})", news.title, news.hash);
-                                continue;
-                            }
-                            // don't paste news older than feeds.maxage
-                            if Utc::now() - news.date > gruik_config.feeds_maxage() {
-                                println!("news too old {}", news.date);
-                                continue;
-                            }
-                            i += 1;
-                            if i > gruik_config.feeds_maxnews() {
-                                println!("too many lines to post");
-                                break;
-                            }
-
-                            if let Err(e) = irc_writer.raw(format!(
-                                "PRIVMSG {} {}\n",
-                                &gruik_config.irc_channel(),
-                                fmt_news(&news)
-                            )) {
-                                println!("Failed to send an IRC message... ({e:?})");
-                            }
-                            thread::sleep(gruik_config.irc_delay());
-
-                            // Mark item as posted
-                            news_list.add(news, gruik_config.feeds_ringsize());
-                        }
-                    } else {
-                        println!("Failed to parse feed : {:?}", feed.err());
-                    }
-                } else {
-                    println!("Failed to got body : {:?}", body.err());
+            let response = match ureq::get(feed_url.as_str()).call() {
+                Ok(r) => r,
+                Err(e) => {
+                    println!("Failed to get a response : {e:?}");
+                    continue;
                 }
-            } else {
-                println!("Failed to get a response : {:?}", response.err());
+            };
+
+            let body = match response.into_string() {
+                Ok(r) => r,
+                Err(e) => {
+                    println!("Failed to got body : {e:?}");
+                    continue;
+                }
+            };
+            let feed = match feed_rs::parser::parse(body.as_bytes()) {
+                Ok(r) => r,
+                Err(e) => {
+                    println!("Failed to parse feed : {e:?}");
+                    continue;
+                }
+            };
+
+            let mut i = 0;
+            for item in feed.entries {
+                let origin = feed
+                    .title
+                    .as_ref()
+                    .map_or_else(|| "Unknown".to_string(), |s| s.content.clone());
+                let date = item.published.map_or_else(Utc::now, |s| s);
+                let title = match item.title {
+                    Some(r) => r.content,
+                    None => "Unknown".to_string(),
+                };
+                let mut links = vec![];
+                for link in item.links {
+                    links.push(link.href);
+                }
+                let news = News {
+                    origin,
+                    date,
+                    title,
+                    hash: mk_hash(&links),
+                    links,
+                };
+                // Check if item was already posted
+                if news_list.contains(&news) {
+                    println!("already posted {} ({})", news.title, news.hash);
+                    continue;
+                }
+                // don't paste news older than feeds.maxage
+                if Utc::now() - news.date > gruik_config.feeds_maxage() {
+                    println!("news too old {}", news.date);
+                    continue;
+                }
+                i += 1;
+                if i > gruik_config.feeds_maxnews() {
+                    println!("too many lines to post");
+                    break;
+                }
+
+                if let Err(e) = irc_writer.raw(format!(
+                    "PRIVMSG {} {}\n",
+                    &gruik_config.irc_channel(),
+                    fmt_news(&news)
+                )) {
+                    println!("Failed to send an IRC message... ({e:?})");
+                }
+                thread::sleep(gruik_config.irc_delay());
+
+                // Mark item as posted
+                news_list.add(news, gruik_config.feeds_ringsize());
             }
         }
 
