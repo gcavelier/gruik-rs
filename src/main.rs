@@ -439,10 +439,7 @@ fn news_fetch(gruik_config: &GruikConfig, news_list: &NewsList, irc_writer: &loi
                     .as_ref()
                     .map_or_else(|| "Unknown".to_string(), |s| s.content.clone());
                 let date = item.published.map_or_else(Utc::now, |s| s);
-                let title = match item.title {
-                    Some(r) => r.content,
-                    None => "Unknown".to_string(),
-                };
+                let title = item.title.map_or("Unknown".to_string(), |v| v.content);
                 let mut links = vec![];
                 for link in item.links {
                     links.push(link.href);
