@@ -275,7 +275,7 @@ fn handle_irc_messages(
                 },
             };
 
-            let origin = msg_args.get(1..).unwrap();
+            let origin: &[&str] = msg_args.get(1..).map_or(&[], |v| v);
 
             for news in news_list.get_latest(n, origin) {
                 if let Err(e) =
