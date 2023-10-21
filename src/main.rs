@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::io::{Read, Write};
 use std::{env, fs, sync::Arc, sync::Mutex, thread};
+use tokio::task::JoinSet;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(deny_unknown_fields)]
@@ -514,7 +515,9 @@ fn config_filename_notify(gruik_config: &GruikConfig) {
         }
     }
 }
-fn main() {
+
+#[tokio::main]
+async fn main() {
     let args: Vec<String> = env::args().collect();
 
     let config_filename = args.get(1).map_or("config.yaml", |s| s).to_string();
@@ -550,15 +553,36 @@ fn main() {
         std::process::exit(1);
     }
 
-    let gruik_config_clone = gruik_config.clone();
-    let gruik_config_clone_again = gruik_config.clone();
+    /*
+     * From here, we are going to create 3 blocking tasks :
+     *
+     * #1 will run news_fetch()
+     * #2 will run config_filename_notify()
+     * #3 will run handle_irc_events()
+     *
+     * As soon as one of the tasks finishes, the whole program will exit!!!
+     */
+
+    let gruik_config_clone1 = gruik_config.clone();
+    let gruik_config_clone2 = gruik_config.clone();
     let news_list = NewsList::new();
-    let news_list_clone = news_list.clone();
-    let irc_writer_clone = irc_writer.clone();
-    thread::spawn(move || news_fetch(&gruik_config_clone, &news_list_clone, &irc_writer_clone));
+    let news_list_clone1 = news_list.clone();
+    let irc_writer_clone1 = irc_writer.clone();
 
-    thread::spawn(move || config_filename_notify(&gruik_config_clone_again));
+    let mut set = JoinSet::new();
 
-    // *Warning*, this is a *blocking* function!
-    handle_irc_events(&gruik_config, &irc_writer, &irc_reader, &news_list);
+    set.spawn_blocking(move || {
+        news_fetch(&gruik_config_clone1, &news_list_clone1, &irc_writer_clone1)
+    });
+
+    set.spawn_blocking(move || config_filename_notify(&gruik_config_clone2));
+
+    set.spawn_blocking(move || {
+        handle_irc_events(&gruik_config, &irc_writer, &irc_reader, &news_list)
+    });
+
+    // We wait for one of the blocking tasks to exit
+    set.join_next().await;
+    println!("now exiting because one the tasks finished");
+    std::process::exit(0);
 }
