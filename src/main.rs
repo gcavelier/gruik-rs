@@ -80,7 +80,7 @@ impl NewsList {
             }
         };
         match f.set_len(0) {
-            Ok(_) => {
+            Ok(()) => {
                 if let Err(e) = f.write_all(
                     serde_json::to_string(&*self.inner.lock().expect("Poisoned lock!"))
                         .unwrap_or_default()
@@ -342,7 +342,7 @@ fn handle_irc_messages(
                 }
             };
             let msg = match gruik_config.rmfeed(index) {
-                Ok(_) => "feed removed".to_string(),
+                Ok(()) => "feed removed".to_string(),
                 Err(e) => e,
             };
 
@@ -576,13 +576,13 @@ async fn main() {
     let mut set = JoinSet::new();
 
     set.spawn_blocking(move || {
-        news_fetch(&gruik_config_clone1, &news_list_clone1, &irc_writer_clone1)
+        news_fetch(&gruik_config_clone1, &news_list_clone1, &irc_writer_clone1);
     });
 
     set.spawn_blocking(move || config_filename_notify(&gruik_config_clone2));
 
     set.spawn_blocking(move || {
-        handle_irc_events(&gruik_config, &irc_writer, &irc_reader, &news_list)
+        handle_irc_events(&gruik_config, &irc_writer, &irc_reader, &news_list);
     });
 
     // We wait for one of the blocking tasks to exit

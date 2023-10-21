@@ -446,7 +446,7 @@ impl GruikConfig {
             Ok(s) => {
                 // Serialization is ok, writing the result to a file
                 match fs::write(&self.filename, s) {
-                    Ok(_) => {}
+                    Ok(()) => {}
                     Err(e) => {
                         println!("addfeed(): Failed to write the new config filename: {e}");
                     }
@@ -470,7 +470,7 @@ impl GruikConfig {
             Ok(s) => {
                 // Serialization is ok, writing the result to a file
                 match fs::write(&self.filename, s) {
-                    Ok(_) => Ok(()),
+                    Ok(()) => Ok(()),
                     Err(e) => Err(format!("rmfeed(): failed to write config file: {e}")),
                 }
             }
