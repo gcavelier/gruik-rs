@@ -19,7 +19,7 @@ To be complete, the following features are needed :
 
 # Enhancements to implement
 
-- [ ] Deserialize colors (IrcConfig.colors.{origin,title,hash,link}) to an enum to check if their values are ok
+- [X] Deserialize colors (IrcConfig.colors.{origin,title,hash,link}) to an enum to check if their values are ok
 - [ ] Reduce the use of unwrap()
 - [X] Use an async runtime instead of threads
 - [ ] Better error handling

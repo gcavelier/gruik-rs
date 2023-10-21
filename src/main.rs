@@ -9,6 +9,8 @@ use std::io::{Read, Write};
 use std::{env, fs, sync::Arc, sync::Mutex, thread};
 use tokio::task::JoinSet;
 
+use crate::gruik_config::IrcColor;
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(deny_unknown_fields)]
 struct News {
@@ -231,7 +233,7 @@ fn handle_irc_messages(
                         if let Err(e) = irc_writer.raw(format!(
                             "PRIVMSG {} {} (from {msg_source} on {irc_channel})\n",
                             &channel,
-                            fmt_news(&news),
+                            fmt_news(gruik_config, &news),
                         )) {
                             println!("Failed to send an IRC message... ({e:?})");
                         } else {
@@ -279,9 +281,11 @@ fn handle_irc_messages(
             let origin: &[&str] = msg_args.get(1..).map_or(&[], |v| v);
 
             for news in news_list.get_latest(n, origin) {
-                if let Err(e) =
-                    irc_writer.raw(format!("PRIVMSG {} {}\n", msg_source, fmt_news(&news)))
-                {
+                if let Err(e) = irc_writer.raw(format!(
+                    "PRIVMSG {} {}\n",
+                    msg_source,
+                    fmt_news(gruik_config, &news)
+                )) {
                     println!("Failed to send an IRC message... ({e:?})");
                 } else {
                     thread::sleep(gruik_config.irc_delay());
@@ -376,23 +380,23 @@ fn mk_hash(links: &[String]) -> String {
     base16ct::lower::encode_string(&Sha256::digest(links.join("")))[..8].to_string()
 }
 
-fn fmt_news(news: &News) -> String {
+fn fmt_news(gruik_config: &GruikConfig, news: &News) -> String {
     format!(
         "[{}{}{}] {}{}{} {}{}{} {}#{}{}",
-        "\x0313",
+        gruik_config.origin_color(),
         news.origin,
-        "\x0f",
-        "\x02",
+        IrcColor::Reset,
+        gruik_config.title_color(),
         news.title,
-        "\x0f",
-        "\x0312",
+        IrcColor::Reset,
+        gruik_config.link_color(),
         news.links
             .first()
             .expect("At least one link should be present!"),
-        "\x0f",
-        "\x0315",
+        IrcColor::Reset,
+        gruik_config.hash_color(),
         news.hash,
-        "\x0f"
+        IrcColor::Reset
     )
 }
 
@@ -471,7 +475,7 @@ fn news_fetch(gruik_config: &GruikConfig, news_list: &NewsList, irc_writer: &loi
                 if let Err(e) = irc_writer.raw(format!(
                     "PRIVMSG {} {}\n",
                     &gruik_config.irc_channel(),
-                    fmt_news(&news)
+                    fmt_news(gruik_config, &news)
                 )) {
                     println!("Failed to send an IRC message... ({e:?})");
                 }

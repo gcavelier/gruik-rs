@@ -1,8 +1,183 @@
 use duration_string::DurationString;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::fmt;
 use std::str::FromStr;
 use std::time::Duration;
 use std::{collections::HashMap, fs, sync::Arc, sync::Mutex};
+
+/*
+ * Color codes from :
+ * https://modern.ircdocs.horse/formatting#colors
+ * https://github.com/lrstanley/girc/blob/master/format.go#L27
+ */
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub enum IrcColor {
+    Bold,        // 0x02
+    Reset,       // 0x0f
+    Italic,      // 0x1d
+    Underline,   // 0x1f
+    White,       // 00
+    Black,       // 01
+    Blue,        // 02
+    Navy,        // 02
+    Green,       // 03
+    Red,         // 04
+    Brown,       // 05
+    Maroon,      // 05
+    Magenta,     // 06
+    Purple,      // 06
+    Orange,      // 07
+    Gold,        // 07
+    Olive,       // 07
+    Yellow,      // 08
+    LightGreen,  // 09
+    Lime,        // 09
+    Cyan,        // 10
+    Teal,        // 10
+    LightCyan,   // 11
+    LightBlue,   // 12
+    Royal,       // 12
+    Pink,        // 13
+    Fuchsia,     // 13
+    LightPurple, // 13
+    Grey,        // 14
+    Gray,        // 14
+    LightGrey,   // 15
+    Silver,      // 15
+}
+
+#[rustfmt::skip]
+impl fmt::Display for IrcColor {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let printable = match *self {
+            Self::Bold        => "\x02",
+            Self::Reset       => "\x0f",
+            Self::Italic      => "\x1d",
+            Self::Underline   => "\x1f",
+            Self::White       => "\x0300",
+            Self::Black       => "\x0301",
+            Self::Blue
+          | Self::Navy        => "\x0302",
+            Self::Green       => "\x0303",
+            Self::Red         => "\x0304",
+            Self::Brown
+          | Self::Maroon      => "\x0305",
+            Self::Magenta
+          | Self::Purple      => "\x0306",
+            Self::Orange
+          | Self::Gold
+          | Self::Olive       => "\x0307",
+            Self::Yellow      => "\x0308",
+            Self::LightGreen
+          | Self::Lime        => "\x0309",
+            Self::Cyan
+          | Self::Teal        => "\x0310",
+            Self::LightCyan   => "\x0311",
+            Self::LightBlue
+          | Self::Royal       => "\x0312",
+            Self::Pink
+          | Self::Fuchsia
+          | Self::LightPurple => "\x0313",
+            Self::Grey
+          | Self::Gray        => "\x0314",
+            Self::LightGrey
+          | Self::Silver      => "\x0315",
+        };
+        write!(f, "{printable}")
+    }
+}
+
+#[rustfmt::skip]
+impl<'de> Deserialize<'de> for IrcColor {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de::Error;
+
+        let s = String::deserialize(deserializer)?;
+        match s.to_lowercase().as_str() {
+            "bold"        => Ok(Self::Bold),
+            "italic"      => Ok(Self::Italic),
+            "underline"   => Ok(Self::Underline),
+            "white"       => Ok(Self::White),
+            "black"       => Ok(Self::Black),
+            "blue"        => Ok(Self::Blue),
+            "navy"        => Ok(Self::Navy),
+            "green"       => Ok(Self::Green),
+            "red"         => Ok(Self::Red),
+            "brown"       => Ok(Self::Brown),
+            "maroon"      => Ok(Self::Maroon),
+            "magenta"     => Ok(Self::Magenta),
+            "purple"      => Ok(Self::Purple),
+            "orange"      => Ok(Self::Orange),
+            "gold"        => Ok(Self::Gold),
+            "olive"       => Ok(Self::Olive),
+            "yellow"      => Ok(Self::Yellow),
+            "lightgreen"  => Ok(Self::LightGreen),
+            "lime"        => Ok(Self::Lime),
+            "cyan"        => Ok(Self::Cyan),
+            "teal"        => Ok(Self::Teal),
+            "lightcyan"   => Ok(Self::LightCyan),
+            "lightblue"   => Ok(Self::LightBlue),
+            "royal"       => Ok(Self::Royal),
+            "pink"        => Ok(Self::Pink),
+            "fuchsia"     => Ok(Self::Fuchsia),
+            "lightpurple" => Ok(Self::LightPurple),
+            "grey"        => Ok(Self::Grey),
+            "gray"        => Ok(Self::Gray),
+            "lightgrey"   => Ok(Self::LightGrey),
+            "silver"      => Ok(Self::Silver),
+            other   => Err(format!("Unknown color '{other}'")).map_err(D::Error::custom),
+        }
+    }
+}
+
+#[rustfmt::skip]
+impl Serialize for IrcColor {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+
+        serializer.serialize_str(match *self {
+            Self::Bold        => "bold",
+            Self::Italic      => "italic",
+            Self::Underline   => "underline",
+            Self::White       => "white",
+            Self::Black       => "black",
+            Self::Blue        => "blue",
+            Self::Navy        => "navy",
+            Self::Green       => "green",
+            Self::Red         => "red",
+            Self::Brown       => "brown",
+            Self::Maroon      => "maroon",
+            Self::Magenta     => "magenta",
+            Self::Purple      => "purple",
+            Self::Orange      => "orange",
+            Self::Gold        => "gold",
+            Self::Olive       => "olive",
+            Self::Yellow      => "yellow",
+            Self::LightGreen  => "lightgreen",
+            Self::Lime        => "lime",
+            Self::Cyan        => "cyan",
+            Self::Teal        => "teal",
+            Self::LightCyan   => "lightcyan",
+            Self::LightBlue   => "lightblue",
+            Self::Royal       => "royal",
+            Self::Pink        => "pink",
+            Self::Fuchsia     => "fuchsia",
+            Self::LightPurple => "lightpurple",
+            Self::Grey        => "grey",
+            Self::Gray        => "gray",
+            Self::LightGrey   => "lightgrey",
+            Self::Silver      => "silver",
+            Self::Reset       => "reset", // This is just here to please the rust compiler
+                                             // because the deserializer won't allow this value
+        })
+    }
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields, default)]
@@ -15,7 +190,7 @@ struct IrcConfig {
     debug: bool,
     port: u16,
     delay: DurationString,
-    colors: HashMap<String, String>,
+    colors: HashMap<String, IrcColor>,
     ops: Vec<String>,
 }
 
@@ -31,10 +206,10 @@ impl Default for IrcConfig {
             port: 6667,
             delay: DurationString::from_str("2s").expect("Wrong default!"),
             colors: HashMap::from([
-                ("origin".to_string(), "pink".to_string()),
-                ("title".to_string(), "bold".to_string()),
-                ("hash".to_string(), "lightgrey".to_string()),
-                ("link".to_string(), "lightblue".to_string()),
+                ("origin".to_string(), IrcColor::Pink),
+                ("title".to_string(), IrcColor::Bold),
+                ("hash".to_string(), IrcColor::LightGrey),
+                ("link".to_string(), IrcColor::LightBlue),
             ]),
             ops: vec![],
         }
@@ -172,6 +347,46 @@ impl GruikConfig {
             .delay
             .try_into()
             .map_or_else(|_| Duration::new(2, 0), |d| d)
+    }
+    pub fn origin_color(&self) -> IrcColor {
+        self.inner
+            .lock()
+            .expect("Poisoned lock!")
+            .irc
+            .colors
+            .get("origin")
+            .unwrap_or(&IrcColor::Pink)
+            .clone()
+    }
+    pub fn title_color(&self) -> IrcColor {
+        self.inner
+            .lock()
+            .expect("Poisoned lock!")
+            .irc
+            .colors
+            .get("title")
+            .unwrap_or(&IrcColor::Bold)
+            .clone()
+    }
+    pub fn hash_color(&self) -> IrcColor {
+        self.inner
+            .lock()
+            .expect("Poisoned lock!")
+            .irc
+            .colors
+            .get("hash")
+            .unwrap_or(&IrcColor::LightGrey)
+            .clone()
+    }
+    pub fn link_color(&self) -> IrcColor {
+        self.inner
+            .lock()
+            .expect("Poisoned lock!")
+            .irc
+            .colors
+            .get("link")
+            .unwrap_or(&IrcColor::LightBlue)
+            .clone()
     }
     pub fn is_ops(&self, user: &String) -> bool {
         self.inner
