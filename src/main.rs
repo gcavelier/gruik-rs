@@ -422,14 +422,9 @@ fn news_fetch(gruik_config: &GruikConfig, news_list: &NewsList, irc_writer: &loi
                 }
             };
 
-            let body = match response.into_string() {
-                Ok(r) => r,
-                Err(e) => {
-                    println!("Failed to got body : {e:?}");
-                    continue;
-                }
-            };
-            let feed = match feed_rs::parser::parse(body.as_bytes()) {
+            let mut body = response.into_body();
+
+            let feed = match feed_rs::parser::parse(body.as_reader()) {
                 Ok(r) => r,
                 Err(e) => {
                     println!("Failed to parse feed : {e:?}");
@@ -495,7 +490,7 @@ fn news_fetch(gruik_config: &GruikConfig, news_list: &NewsList, irc_writer: &loi
 
 fn config_filename_notify(gruik_config: &GruikConfig) {
     use notify::{
-        event::ModifyKind, Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
+        Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher, event::ModifyKind,
     };
 
     let (tx, rx) = std::sync::mpsc::channel();
